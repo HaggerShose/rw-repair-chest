@@ -9,7 +9,7 @@ import net.risingworld.api.objects.Item;
 
 /**
  * Repair material quote from missing durability percent.
- * Gold ingot staffel is shared. Other mats are per tool -- divisor 0 skips.
+ * Tune per-item recipes below. Gold staffel is always added for every repair.
  */
 final class RepairPricing {
 	static final int GOLD_BASE = 10;
@@ -19,57 +19,54 @@ final class RepairPricing {
 	static final int GOLD_HIGH_PCT = 10;
 	static final int VARIANT = 0;
 
-	static final short FALLBACK_COAL = 430;
-	static final short FALLBACK_IRON_INGOT = 450;
-	static final short FALLBACK_IRON_PLATE = 470;
-	static final short FALLBACK_TUNGSTEN_INGOT = 453;
-	static final short FALLBACK_TUNGSTEN_PLATE = 473;
-	static final short FALLBACK_TUNGSTEN_WIRE = 493;
-	static final short FALLBACK_ALUMINIUM_INGOT = 452;
-	static final short FALLBACK_ALUMINIUM_PLATE = 472;
-	static final short FALLBACK_ALUMINIUM_WIRE = 492;
 	static final short FALLBACK_GOLD_INGOT = 451;
-	static final short FALLBACK_GOLD_PLATE = 471;
 	static final short FALLBACK_BOARD = 145;
 
-	/**
-	 * Per-tool percent divisors (double, e.g. 2.5 / 1.25). RW names use plate.
-	 * Divisor 0 skips that material. boardBelowPct 0 = no circuit board.
-	 */
-	record ToolRecipe(
-			double coal,
-			double ironIngot,
-			double ironPlate,
-			double tungstenIngot,
-			double tungstenPlate,
-			double tungstenWire,
-			double aluminiumIngot,
-			double aluminiumPlate,
-			double aluminiumWire,
-			double goldPlate,
-			int boardBelowPct) {
+	/** One consumed material: amount = ceil(missingPct / divisor). Divisor 0 skips. */
+	record Mat(String name, short fallback, double divisor) {
 	}
 
-	static final ToolRecipe MINING_DRILL = new ToolRecipe(
-			2.5, 2.5, 0,
-			5, 0, 0,
-			0, 0, 0,
-			0,
-			15);
-	static final ToolRecipe CHAINSAW = new ToolRecipe(
-			2.5, 0, 2.5,
-			0, 2.5, 0,
-			0, 0, 0,
-			0,
-			15);
-	static final ToolRecipe TRIMMER = new ToolRecipe(
-			2.5, 0, 5,
-			0, 0, 2.5,
-			0, 0, 0,
-			0,
-			15);
+	/**
+	 * Per-item recipe. Tune mats / knife / board here -- one place for all prices.
+	 * boardBelowPct 0 = no circuit board. knifeCatalyst = 1x any knife, not consumed.
+	 */
+	record ItemRecipe(String name, short typeId, Mat[] mats, boolean knifeCatalyst, int boardBelowPct) {
+	}
 
-	record Need(short typeId, int variant, int amount, String label) {
+	static final ItemRecipe MINING_DRILL = item(
+			"miningdrill", 134,
+			false, 15,
+			mat("coal", 430, 2.5),
+			mat("ironingot", 450, 2.5),
+			mat("tungsteningot", 453, 5));
+	static final ItemRecipe CHAINSAW = item(
+			"chainsaw", 132,
+			false, 15,
+			mat("coal", 430, 2.5),
+			mat("ironplate", 470, 2.5),
+			mat("tungstenplate", 473, 5));
+	static final ItemRecipe TRIMMER = item(
+			"trimmer", 136,
+			false, 15,
+			mat("coal", 430, 2.5),
+			mat("ironplate", 470, 5),
+			mat("tungstenwire", 493, 2.5));
+	static final ItemRecipe BOW1 = item(
+			"bow1", 195,
+			true, 0,
+			mat("yarn", 162, 1),
+			mat("lumber", 502, 2.5));
+	static final ItemRecipe CROSSBOW = item(
+			"crossbow", 205,
+			true, 0,
+			mat("yarn", 162, 1),
+			mat("ironplate", 470, 2.5));
+
+	private static final ItemRecipe[] RECIPES = {
+			MINING_DRILL, CHAINSAW, TRIMMER, BOW1, CROSSBOW
+	};
+
+	record Need(short typeId, int variant, int amount, String label, boolean consume) {
 	}
 
 	private RepairPricing() {
@@ -81,22 +78,20 @@ final class RepairPricing {
 		if (missing < 1) {
 			return List.of();
 		}
+		Items.ItemDefinition def = target.getDefinition();
+		String name = def == null || def.name == null ? "" : def.name;
+		ItemRecipe recipe = lookup(name, target.getTypeID());
 		var needs = new ArrayList<Need>();
-		ToolRecipe spec = toolRecipe(target);
-		if (spec != null) {
-			add(needs, "coal", FALLBACK_COAL, amountFor(missing, spec.coal()));
-			add(needs, "ironingot", FALLBACK_IRON_INGOT, amountFor(missing, spec.ironIngot()));
-			add(needs, "ironplate", FALLBACK_IRON_PLATE, amountFor(missing, spec.ironPlate()));
-			add(needs, "tungsteningot", FALLBACK_TUNGSTEN_INGOT, amountFor(missing, spec.tungstenIngot()));
-			add(needs, "tungstenplate", FALLBACK_TUNGSTEN_PLATE, amountFor(missing, spec.tungstenPlate()));
-			add(needs, "tungstenwire", FALLBACK_TUNGSTEN_WIRE, amountFor(missing, spec.tungstenWire()));
-			add(needs, "aluminiumingot", FALLBACK_ALUMINIUM_INGOT, amountFor(missing, spec.aluminiumIngot()));
-			add(needs, "aluminiumplate", FALLBACK_ALUMINIUM_PLATE, amountFor(missing, spec.aluminiumPlate()));
-			add(needs, "aluminiumwire", FALLBACK_ALUMINIUM_WIRE, amountFor(missing, spec.aluminiumWire()));
-			add(needs, "goldplate", FALLBACK_GOLD_PLATE, amountFor(missing, spec.goldPlate()));
+		if (recipe != null) {
+			for (Mat mat : recipe.mats()) {
+				add(needs, mat.name(), mat.fallback(), amountFor(missing, mat.divisor()));
+			}
+			if (recipe.knifeCatalyst()) {
+				needs.add(knifeNeed());
+			}
 		}
 		add(needs, "goldingot", FALLBACK_GOLD_INGOT, goldAmount(remaining));
-		if (spec != null && spec.boardBelowPct() > 0 && remaining < spec.boardBelowPct()) {
+		if (recipe != null && recipe.boardBelowPct() > 0 && remaining < recipe.boardBelowPct()) {
 			add(needs, "circuitboard", FALLBACK_BOARD, 1);
 		}
 		return needs;
@@ -119,6 +114,18 @@ final class RepairPricing {
 		return (cur * 100) / max;
 	}
 
+	static boolean isKnife(Item item) {
+		if (item == null) {
+			return false;
+		}
+		Items.ItemDefinition def = item.getDefinition();
+		return def != null && def.type == Items.Type.Knife;
+	}
+
+	private static Need knifeNeed() {
+		return new Need((short) 0, VARIANT, 1, "knife", false);
+	}
+
 	private static int goldAmount(int remaining) {
 		if (remaining < GOLD_HIGH_PCT) {
 			return GOLD_UNDER_10;
@@ -137,30 +144,33 @@ final class RepairPricing {
 		return (int) Math.ceil(missing / divisor);
 	}
 
-	private static ToolRecipe toolRecipe(Item target) {
-		Items.ItemDefinition def = target.getDefinition();
-		String name = def == null ? "" : def.name;
-		if (name == null) {
-			name = "";
+	private static ItemRecipe lookup(String name, short typeId) {
+		for (ItemRecipe recipe : RECIPES) {
+			if (recipe.name().equals(name) || recipe.typeId() == typeId) {
+				return recipe;
+			}
 		}
-		return switch (name) {
-			case "miningdrill" -> MINING_DRILL;
-			case "chainsaw" -> CHAINSAW;
-			case "trimmer" -> TRIMMER;
-			default -> switch (target.getTypeID()) {
-				case 134 -> MINING_DRILL;
-				case 132 -> CHAINSAW;
-				case 136 -> TRIMMER;
-				default -> null;
-			};
-		};
+		return null;
+	}
+
+	private static ItemRecipe item(
+			String name,
+			int typeId,
+			boolean knifeCatalyst,
+			int boardBelowPct,
+			Mat... mats) {
+		return new ItemRecipe(name, (short) typeId, mats, knifeCatalyst, boardBelowPct);
+	}
+
+	private static Mat mat(String name, int fallback, double divisor) {
+		return new Mat(name, (short) fallback, divisor);
 	}
 
 	private static void add(List<Need> needs, String name, short fallback, int amount) {
 		if (amount <= 0) {
 			return;
 		}
-		needs.add(new Need(resolveItemId(name, fallback), VARIANT, amount, name));
+		needs.add(new Need(resolveItemId(name, fallback), VARIANT, amount, name, true));
 	}
 
 	private static short resolveItemId(String name, short fallback) {

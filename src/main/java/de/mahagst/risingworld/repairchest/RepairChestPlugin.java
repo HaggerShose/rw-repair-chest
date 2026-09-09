@@ -48,6 +48,8 @@ public class RepairChestPlugin extends Plugin implements Listener {
 	static final short FALLBACK_DRILL_ID = 134;
 	static final short FALLBACK_CHAINSAW_ID = 132;
 	static final short FALLBACK_TRIMMER_ID = 136;
+	static final short FALLBACK_BOW1_ID = 195;
+	static final short FALLBACK_CROSSBOW_ID = 205;
 	static final String KIND_ITEM = "item";
 	static final String KIND_OBJECT = "object";
 	static final String KIND_CONSTRUCTION = "construction";
@@ -85,6 +87,8 @@ public class RepairChestPlugin extends Plugin implements Listener {
 		repository.seedWhitelistItem(resolveItemId("miningdrill", FALLBACK_DRILL_ID), "miningdrill");
 		repository.seedWhitelistItem(resolveItemId("chainsaw", FALLBACK_CHAINSAW_ID), "chainsaw");
 		repository.seedWhitelistItem(resolveItemId("trimmer", FALLBACK_TRIMMER_ID), "trimmer");
+		repository.seedWhitelistItem(resolveItemId("bow1", FALLBACK_BOW1_ID), "bow1");
+		repository.seedWhitelistItem(resolveItemId("crossbow", FALLBACK_CROSSBOW_ID), "crossbow");
 		whitelist = repository.findWhitelist();
 		loadStations();
 		sweepAndResetIdle();
@@ -593,6 +597,9 @@ public class RepairChestPlugin extends Plugin implements Listener {
 			target.setDurability(def.durability);
 		}
 		for (RepairPricing.Need need : recipe) {
+			if (!need.consume()) {
+				continue;
+			}
 			int rest = storage.removeItem(need.typeId(), need.variant(), need.amount());
 			if (rest > 0) {
 				System.out.println("[RepairChest] Missing " + rest + "x " + need.label()
@@ -668,7 +675,8 @@ public class RepairChestPlugin extends Plugin implements Listener {
 		for (RepairPricing.Need need : recipe) {
 			int left = need.amount() - countMaterial(items, need);
 			if (left > 0) {
-				missing.add(new RepairPricing.Need(need.typeId(), need.variant(), left, need.label()));
+				missing.add(new RepairPricing.Need(
+						need.typeId(), need.variant(), left, need.label(), need.consume()));
 			}
 		}
 		return missing;
@@ -681,6 +689,12 @@ public class RepairChestPlugin extends Plugin implements Listener {
 		}
 		for (Item item : items) {
 			if (item == null) {
+				continue;
+			}
+			if (!recipe.consume()) {
+				if (RepairPricing.isKnife(item)) {
+					have += Math.max(item.getStack(), 1);
+				}
 				continue;
 			}
 			if (itemKind(item).equals(KIND_ITEM)

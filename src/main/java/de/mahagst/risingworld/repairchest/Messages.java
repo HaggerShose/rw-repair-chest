@@ -38,6 +38,9 @@ final class Messages {
 		StringBuilder text = new StringBuilder("Need:");
 		for (RepairPricing.Need need : missing) {
 			text.append('\n').append(need.amount()).append("x ").append(need.label());
+			if (!need.consume()) {
+				text.append(" (tool)");
+			}
 		}
 		return text.toString();
 	}
