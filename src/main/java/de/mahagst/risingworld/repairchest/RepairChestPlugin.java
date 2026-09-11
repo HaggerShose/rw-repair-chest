@@ -50,6 +50,8 @@ public class RepairChestPlugin extends Plugin implements Listener {
 	static final short FALLBACK_TRIMMER_ID = 136;
 	static final short FALLBACK_BOW1_ID = 195;
 	static final short FALLBACK_CROSSBOW_ID = 205;
+	static final short FALLBACK_REPEATER_ID = 300;
+	static final short FALLBACK_MORNINGSTAR_ID = 250;
 	static final String KIND_ITEM = "item";
 	static final String KIND_OBJECT = "object";
 	static final String KIND_CONSTRUCTION = "construction";
@@ -89,6 +91,8 @@ public class RepairChestPlugin extends Plugin implements Listener {
 		repository.seedWhitelistItem(resolveItemId("trimmer", FALLBACK_TRIMMER_ID), "trimmer");
 		repository.seedWhitelistItem(resolveItemId("bow1", FALLBACK_BOW1_ID), "bow1");
 		repository.seedWhitelistItem(resolveItemId("crossbow", FALLBACK_CROSSBOW_ID), "crossbow");
+		repository.seedWhitelistItem(resolveItemId("repeater", FALLBACK_REPEATER_ID), "repeater");
+		repository.seedWhitelistItem(resolveItemId("morningstar1", FALLBACK_MORNINGSTAR_ID), "morningstar1");
 		whitelist = repository.findWhitelist();
 		loadStations();
 		sweepAndResetIdle();

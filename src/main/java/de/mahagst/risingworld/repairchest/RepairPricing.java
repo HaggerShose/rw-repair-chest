@@ -61,9 +61,19 @@ final class RepairPricing {
 			true, 0,
 			mat("yarn", 162, 1),
 			mat("ironplate", 470, 2.5));
+	static final ItemRecipe REPEATER = item(
+			"repeater", 300,
+			false, 0,
+			mat("lumber", 502, 1),
+			mat("ironplate", 470, 2.5));
+	static final ItemRecipe MORNINGSTAR = item(
+			"morningstar1", 250,
+			false, 0,
+			mat("lumber", 502, 10),
+			mat("ironplate", 470, 5));
 
 	private static final ItemRecipe[] RECIPES = {
-			MINING_DRILL, CHAINSAW, TRIMMER, BOW1, CROSSBOW
+			MINING_DRILL, CHAINSAW, TRIMMER, BOW1, CROSSBOW, REPEATER, MORNINGSTAR
 	};
 
 	record Need(short typeId, int variant, int amount, String label, boolean consume) {
