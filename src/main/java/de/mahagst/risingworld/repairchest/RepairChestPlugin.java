@@ -774,7 +774,7 @@ public class RepairChestPlugin extends Plugin implements Listener {
 
 	private void notifyStation(RepairStation station, Player player, String text, TextAnchor anchor) {
 		updateSign(station, text, anchor);
-		if (player != null) {
+		if (player != null && (station == null || !station.hasSign())) {
 			player.sendTextMessage(text);
 		}
 	}

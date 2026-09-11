@@ -11,7 +11,7 @@ Players put a damaged whitelisted tool and the materials into the chest. After a
 3. Look at the sign and run `/make-repair-sign <NAME>` (same name).
 4. A player puts a damaged whitelisted item into the chest (mining drill, chainsaw, trimmer, bow, crossbow, repeater, or morning star).
 5. After **2 seconds** without further changes, the contents are scanned.
-6. Sign and chat show the missing materials -- or an error (two items, already at 100%).
+6. The sign shows the missing materials -- or an error (two items, already at 100%). Without a sign, the same text goes to chat.
 7. Further puts restart the same timer.
 8. When all materials are present: the chest locks for ~2s, durability is set to max, then only the required mats are removed.
 9. Take the repaired item out -> station returns to idle. Leftover materials stay.
@@ -24,7 +24,7 @@ Notes:
 - Bows (`bow1`) need yarn, lumber, any knife, and gold. Crossbows need yarn, an iron plate, any knife, and gold. The knife is a tool requirement and is **not** consumed.
 - Repeater and morning star (`morningstar1`) need lumber, an iron plate, and gold.
 - Pressing F on a registered sign (idle only) shows chat `Put your damaged Item into the Chest`. Sign text cannot be edited.
-- Only the admin who runs a command gets command feedback. Station messages go to the sign and the player using the chest.
+- Only the admin who runs a command gets command feedback. Station messages go to the linked sign; chat is used only if the station has no sign.
 
 ## Commands
 
