@@ -12,19 +12,67 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.source>20</maven.compiler.source>
     <maven.compiler.target>20</maven.compiler.target>
+    <rw.plugin.api.version>0.9.3</rw.plugin.api.version>
+    <oz.tools.version>0.24.3</oz.tools.version>
   </properties>
 
   <dependencies>
     <dependency>
       <groupId>net.rising-world</groupId>
       <artifactId>plugin-api</artifactId>
-      <version>0.9.3</version>
+      <version>${rw.plugin.api.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <!-- Compile against OZ Tools; runtime comes from Plugins/OZTools on the
+    server. -->
+    <dependency>
+      <groupId>com.github.devidian</groupId>
+      <artifactId>rw-plugin-oz-tools</artifactId>
+      <version>${oz.tools.version}</version>
       <scope>provided</scope>
     </dependency>
   </dependencies>
 
   <build>
     <finalName>RepairChest</finalName>
+    <plugins>
+      <!-- Install bundled JARs into the local .m2 repo before compile. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-install-plugin</artifactId>
+        <version>3.1.1</version>
+        <executions>
+          <execution>
+            <id>install-plugin-api-lib</id>
+            <phase>validate</phase>
+            <goals>
+              <goal>install-file</goal>
+            </goals>
+            <configuration>
+              <file>${project.basedir}/lib/PluginAPI.jar</file>
+              <groupId>net.rising-world</groupId>
+              <artifactId>plugin-api</artifactId>
+              <version>${rw.plugin.api.version}</version>
+              <packaging>jar</packaging>
+            </configuration>
+          </execution>
+          <execution>
+            <id>install-oz-tools-lib</id>
+            <phase>validate</phase>
+            <goals>
+              <goal>install-file</goal>
+            </goals>
+            <configuration>
+              <file>${project.basedir}/lib/OZTools.jar</file>
+              <groupId>com.github.devidian</groupId>
+              <artifactId>rw-plugin-oz-tools</artifactId>
+              <version>${oz.tools.version}</version>
+              <packaging>jar</packaging>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
   </build>
 
 </project>

@@ -64,6 +64,44 @@ Plugins/RepairChest/repair.db
 
 On startup, missing or replaced chests are cleaned out of the database so dead entries do not stick around.
 
+## Source structure
+
+All packages below are under `de.mahagst.risingworld.repairchest` in one Maven project and one plugin JAR.
+
+```text
+repairchest/
+    RepairChestPlugin.java
+    command/
+        RepairCommands.java
+    config/
+        RepairSettings.java
+    database/
+        RepairRepository.java
+    integration/
+        SettingsUiIntegration.java
+    listener/
+        RepairListener.java
+    message/
+        Messages.java
+    model/
+        RepairStation.java
+        WhitelistEntry.java
+    repair/
+        RepairService.java
+        RepairPricing.java
+```
+
+- `RepairChestPlugin` creates the components, opens/closes SQLite and registers/unregisters listeners.
+- `RepairCommands` handles command parsing, operator access and focus resolution.
+- `RepairListener` handles storage/sign events and delegates station operations to `RepairService`.
+- `RepairService` owns station state, timers, identity checks, feedback and repair execution. `RepairPricing` calculates material requirements.
+- `RepairRepository` handles the SQLite schema and queries; `model` holds station and whitelist records.
+- `Messages` contains chat/sign text.
+- `RepairSettings` holds the existing timer values and allowed chest types. The plugin currently uses `defaults()`; JSON loading and saving are a later step.
+- `SettingsUiIntegration` defines only `register()` / `unregister()` for a future optional settings UI. The OZ adapter and conditional loading are a later step; OZ imports will be confined to that adapter.
+
+This structural refactor keeps the existing recipes, database format and repair flow. It does not activate an OZ UI.
+
 ## License
 
 MIT -- see [LICENSE](LICENSE).

@@ -1,7 +1,7 @@
-package de.mahagst.risingworld.repairchest;
+package de.mahagst.risingworld.repairchest.model;
 
 /** One registered repair station (chest + optional sign). */
-record RepairStation(
+public record RepairStation(
 		String name,
 		long storageId,
 		long objectId,
@@ -26,28 +26,28 @@ record RepairStation(
 		String state,
 		long createdAt) {
 
-	static final String IDLE = "idle";
-	static final String QUOTED = "quoted";
-	static final String REPAIRING = "repairing";
-	static final String DONE = "done";
+	public static final String IDLE = "idle";
+	public static final String QUOTED = "quoted";
+	public static final String REPAIRING = "repairing";
+	public static final String DONE = "done";
 
-	boolean isIdle() {
+	public boolean isIdle() {
 		return IDLE.equals(state);
 	}
 
-	boolean isRepairing() {
+	public boolean isRepairing() {
 		return REPAIRING.equals(state);
 	}
 
-	boolean isDone() {
+	public boolean isDone() {
 		return DONE.equals(state);
 	}
 
-	boolean hasSign() {
+	public boolean hasSign() {
 		return signId != null;
 	}
 
-	RepairStation withState(String newState) {
+	public RepairStation withState(String newState) {
 		return new RepairStation(
 				name, storageId, objectId, chunkX, chunkY, chunkZ,
 				worldX, worldY, worldZ, objectType, creationDate,
@@ -56,7 +56,7 @@ record RepairStation(
 				newState, createdAt);
 	}
 
-	RepairStation withSign(
+	public RepairStation withSign(
 			long newSignId,
 			long newSignObjectId,
 			int newSignChunkX,
@@ -75,7 +75,7 @@ record RepairStation(
 				state, createdAt);
 	}
 
-	RepairStation withoutSign() {
+	public RepairStation withoutSign() {
 		return new RepairStation(
 				name, storageId, objectId, chunkX, chunkY, chunkZ,
 				worldX, worldY, worldZ, objectType, creationDate,

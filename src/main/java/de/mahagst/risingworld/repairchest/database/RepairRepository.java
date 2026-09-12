@@ -1,4 +1,4 @@
-package de.mahagst.risingworld.repairchest;
+package de.mahagst.risingworld.repairchest.database;
 
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -8,17 +8,20 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import de.mahagst.risingworld.repairchest.model.RepairStation;
+import de.mahagst.risingworld.repairchest.model.WhitelistEntry;
+
 import net.risingworld.api.database.Database;
 
 /** SQLite persistence for repair stations and the repairable-item whitelist. */
-final class RepairRepository {
+public final class RepairRepository {
 	private final Database database;
 
-	RepairRepository(Database database) {
+	public RepairRepository(Database database) {
 		this.database = database;
 	}
 
-	void createSchema() {
+	public void createSchema() {
 		database.execute("PRAGMA foreign_keys = ON");
 		// DELETE so a copied repair.db alone is complete; write load is tiny.
 		database.execute("PRAGMA journal_mode=DELETE");
@@ -61,7 +64,7 @@ final class RepairRepository {
 	}
 
 	/** Seed a repairable item. NULL variant = any. INSERT OR IGNORE keeps operator edits. */
-	void seedWhitelistItem(short typeId, String label) {
+	public void seedWhitelistItem(short typeId, String label) {
 		var sql = """
 				INSERT OR IGNORE INTO repair_whitelist (item_kind, type_id, variant, label)
 				VALUES ('item', ?, NULL, ?)
@@ -75,11 +78,11 @@ final class RepairRepository {
 		}
 	}
 
-	Optional<RepairStation> findByName(String name) {
+	public Optional<RepairStation> findByName(String name) {
 		return queryOne("SELECT * FROM repair_stations WHERE name = ?", prep -> prep.setString(1, name));
 	}
 
-	List<RepairStation> findAll() {
+	public List<RepairStation> findAll() {
 		var stations = new ArrayList<RepairStation>();
 		var sql = "SELECT * FROM repair_stations";
 		try (var prep = database.getConnection().prepareStatement(sql);
@@ -93,7 +96,7 @@ final class RepairRepository {
 		return stations;
 	}
 
-	List<WhitelistEntry> findWhitelist() {
+	public List<WhitelistEntry> findWhitelist() {
 		var entries = new ArrayList<WhitelistEntry>();
 		var sql = "SELECT item_kind, type_id, variant, label FROM repair_whitelist";
 		try (var prep = database.getConnection().prepareStatement(sql);
@@ -113,7 +116,7 @@ final class RepairRepository {
 		return entries;
 	}
 
-	boolean insert(RepairStation station) {
+	public boolean insert(RepairStation station) {
 		var sql = """
 				INSERT INTO repair_stations (
 				  name, storage_id, object_id, chunk_x, chunk_y, chunk_z,
@@ -133,7 +136,7 @@ final class RepairRepository {
 		}
 	}
 
-	void setState(long storageId, String state) {
+	public void setState(long storageId, String state) {
 		var sql = "UPDATE repair_stations SET state = ? WHERE storage_id = ?";
 		try (var prep = database.getConnection().prepareStatement(sql)) {
 			prep.setString(1, state);
@@ -144,7 +147,7 @@ final class RepairRepository {
 		}
 	}
 
-	void linkSign(RepairStation station) {
+	public void linkSign(RepairStation station) {
 		var sql = """
 				UPDATE repair_stations SET
 				  sign_id = ?, sign_object_id = ?,
@@ -171,7 +174,7 @@ final class RepairRepository {
 		}
 	}
 
-	void clearSign(long storageId) {
+	public void clearSign(long storageId) {
 		var sql = """
 				UPDATE repair_stations SET
 				  sign_id = NULL, sign_object_id = NULL,
@@ -188,7 +191,7 @@ final class RepairRepository {
 		}
 	}
 
-	void delete(long storageId) {
+	public void delete(long storageId) {
 		var sql = "DELETE FROM repair_stations WHERE storage_id = ?";
 		try (var prep = database.getConnection().prepareStatement(sql)) {
 			prep.setLong(1, storageId);
@@ -313,13 +316,4 @@ final class RepairRepository {
 		void apply(PreparedStatement prep) throws SQLException;
 	}
 
-	/** Whitelist row. variant null = any variant. */
-	record WhitelistEntry(String itemKind, short typeId, Integer variant, String label) {
-		boolean matches(String kind, short itemTypeId, int itemVariant) {
-			if (!itemKind.equals(kind) || typeId != itemTypeId) {
-				return false;
-			}
-			return variant == null || variant == itemVariant;
-		}
-	}
 }

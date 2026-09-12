@@ -1,4 +1,4 @@
-package de.mahagst.risingworld.repairchest;
+package de.mahagst.risingworld.repairchest.repair;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,7 +11,7 @@ import net.risingworld.api.objects.Item;
  * Repair material quote from missing durability percent.
  * Tune per-item recipes below. Gold staffel is always added for every repair.
  */
-final class RepairPricing {
+public final class RepairPricing {
 	static final int GOLD_BASE = 10;
 	static final int GOLD_UNDER_15 = 15;
 	static final int GOLD_UNDER_10 = 20;
@@ -76,7 +76,7 @@ final class RepairPricing {
 			MINING_DRILL, CHAINSAW, TRIMMER, BOW1, CROSSBOW, REPEATER, MORNINGSTAR
 	};
 
-	record Need(short typeId, int variant, int amount, String label, boolean consume) {
+	public record Need(short typeId, int variant, int amount, String label, boolean consume) {
 	}
 
 	private RepairPricing() {
