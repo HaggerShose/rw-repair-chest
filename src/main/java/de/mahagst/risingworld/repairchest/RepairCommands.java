@@ -38,7 +38,7 @@ public final class RepairCommands implements Listener {
 			return;
 		}
 		Player player = event.getPlayer();
-		if (!isAllowed(player)) {
+		if (!repairService.isAllowed(player)) {
 			return;
 		}
 		event.setCancelled(true);
@@ -131,14 +131,6 @@ public final class RepairCommands implements Listener {
 				|| cmd.equals("/remove-repair-chest")
 				|| cmd.equals("/repair-info")
 				|| cmd.equals("/reload-repair-chest");
-	}
-
-	private boolean isAllowed(Player player) {
-		if (player.isAdmin()) {
-			return true;
-		}
-		String uid = player.getUID();
-		return uid != null && repairService.settings().allowedUids().contains(uid);
 	}
 
 	private void makeChest(Player player, String[] args) {

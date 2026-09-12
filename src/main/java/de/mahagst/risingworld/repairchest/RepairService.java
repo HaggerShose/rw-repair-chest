@@ -1,5 +1,6 @@
 package de.mahagst.risingworld.repairchest;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -32,6 +33,7 @@ public final class RepairService {
 	static final String KIND_CLOTHING = "clothing";
 
 	private final RepairRepository repository;
+	private final RepairSettingsStore store;
 	private volatile RepairSettings settings;
 	private final Consumer<Runnable> enqueue;
 	private final StationRegistry stations;
@@ -40,9 +42,11 @@ public final class RepairService {
 	private final Map<Long, String> lastActorUid = new HashMap<>();
 	private List<WhitelistEntry> whitelist = List.of();
 
-	public RepairService(RepairRepository repository, RepairSettings settings, Consumer<Runnable> enqueue) {
+	public RepairService(RepairRepository repository, RepairSettings settings, RepairSettingsStore store,
+			Consumer<Runnable> enqueue) {
 		this.repository = repository;
 		this.settings = settings;
+		this.store = store;
 		this.enqueue = enqueue;
 		this.stations = new StationRegistry(repository, settings);
 	}
@@ -63,6 +67,49 @@ public final class RepairService {
 		this.settings = next;
 		stations.replaceSettings(next);
 		syncWhitelistFromSettings();
+	}
+
+	public boolean isAllowed(Player player) {
+		if (player.isAdmin()) {
+			return true;
+		}
+		String uid = player.getUID();
+		return uid != null && settings.allowedUids().contains(uid);
+	}
+
+	/** null = saved; otherwise an error for the caller to show. */
+	public String addRepairable(String name, short fallbackTypeId) {
+		if (name == null || name.isBlank()) {
+			return "Missing item name.";
+		}
+		RepairSettings next = settings.addingRepairable(name, fallbackTypeId);
+		if (next == settings) {
+			return "Already listed: " + name.trim();
+		}
+		return persistWhitelist(next);
+	}
+
+	/** null = saved; otherwise an error for the caller to show. */
+	public String removeRepairable(String name) {
+		if (name == null || name.isBlank()) {
+			return "Missing item name.";
+		}
+		RepairSettings next = settings.removingRepairable(name);
+		if (next == settings) {
+			return "Not listed: " + name.trim();
+		}
+		return persistWhitelist(next);
+	}
+
+	private String persistWhitelist(RepairSettings next) {
+		try {
+			store.save(next);
+		} catch (IOException e) {
+			System.out.println("[RepairChest] Could not save settings.json: " + e.getMessage());
+			return "Could not save settings.json";
+		}
+		applySettings(next);
+		return null;
 	}
 
 	private void syncWhitelistFromSettings() {

@@ -1,5 +1,6 @@
 package de.mahagst.risingworld.repairchest;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -66,9 +67,57 @@ public record RepairSettings(
 		allowedUids = Set.copyOf(allowedUids);
 	}
 
+	public RepairSettings withWhitelist(List<WhitelistSeed> seeds) {
+		return new RepairSettings(
+				debounceSeconds,
+				postTakeScanSeconds,
+				repairSeconds,
+				interactDistance,
+				fullPriceRemainingPercent,
+				goldFee,
+				goldItemName,
+				fullPriceOnlyIngredients,
+				manualRecipes,
+				allowedChestTypes,
+				seeds,
+				allowedUids);
+	}
+
+	public RepairSettings addingRepairable(String name, short fallbackTypeId) {
+		if (name == null || name.isBlank()) {
+			return this;
+		}
+		String trimmed = name.trim();
+		for (WhitelistSeed seed : whitelistSeeds) {
+			if (seed.name().equals(trimmed)) {
+				return this;
+			}
+		}
+		var next = new ArrayList<>(whitelistSeeds);
+		next.add(new WhitelistSeed(trimmed, fallbackTypeId));
+		return withWhitelist(next);
+	}
+
+	public RepairSettings removingRepairable(String name) {
+		if (name == null || name.isBlank()) {
+			return this;
+		}
+		String trimmed = name.trim();
+		var next = new ArrayList<WhitelistSeed>();
+		for (WhitelistSeed seed : whitelistSeeds) {
+			if (!seed.name().equals(trimmed)) {
+				next.add(seed);
+			}
+		}
+		if (next.size() == whitelistSeeds.size()) {
+			return this;
+		}
+		return withWhitelist(next);
+	}
+
 	public static RepairSettings defaults() {
 		return new RepairSettings(
-				2f,
+				1f,
 				0.25f,
 				2f,
 				5f,

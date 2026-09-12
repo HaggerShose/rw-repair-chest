@@ -64,29 +64,32 @@ Plugins/RepairChest/settings.json    -- operator knobs (created on first start)
 Plugins/RepairChest/repair.db        -- registered stations
 ```
 
-The settings file must be named `settings.json` (not `settings.json.txt`). Edit it, then `/reload-repair-chest`. Invalid JSON keeps the previous in-memory settings. Stations are not touched by reload.
+The settings file must be named `settings.json` (not `settings.json.txt`). Edit it, then `/reload-repair-chest`. Invalid JSON keeps the previous in-memory settings. Stations are not touched by reload. `settings.json` is the source of truth for operator knobs.
+
+If **OZ Tools** is installed, RepairChest adds a whitelist editor under the OZ **Einstellungen** tab (Add via the native item picker, Remove per row). The same JSON file is written. Without OZ, commands and the JSON file still work.
 
 On startup, missing or replaced chests are cleaned out of the database so dead entries do not stick around.
 
 ## Source structure
 
-Flat package `de.mahagst.risingworld.repairchest` -- one Maven project, one plugin JAR.
+Package `de.mahagst.risingworld.repairchest` -- one Maven project, one plugin JAR. OZ-only UI lives in `oz/`.
 
 ```text
-RepairChestPlugin.java   -- lifecycle
+RepairChestPlugin.java   -- lifecycle; optional OZ UI via reflection
 RepairCommands.java      -- commands + storage/sign events
-RepairService.java       -- put/take/scan/repair + timers
+RepairService.java       -- put/take/scan/repair + timers; whitelist add/remove
 StationRegistry.java     -- RAM index, identity, lock/sign
 RepairPricing.java       -- recipe quote, gold fee, allocation
 RepairRepository.java    -- SQLite
 RepairSettings.java      -- record + built-in defaults()
 RepairSettingsStore.java -- settings.json load/save
+oz/OzWhitelistUi.java    -- optional Einstellungen whitelist panel
 Messages.java
 RepairStation.java
 WhitelistEntry.java
 ```
 
-Pricing uses live API recipes plus a flat gold fee. Startup/reload replaces the whitelist from `settings.json`. OZ Tools is compile-only; runtime stays standalone.
+Pricing uses live API recipes plus a flat gold fee. Startup/reload replaces the whitelist from `settings.json`. OZ Tools is compile-only (`provided`, not shaded); runtime stays standalone. The Einstellungen UI is registered only when the `"OZ - Tools"` plugin is present.
 
 ## Verify
 

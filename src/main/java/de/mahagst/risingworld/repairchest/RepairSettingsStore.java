@@ -18,7 +18,8 @@ import com.google.gson.JsonSyntaxException;
 
 /**
  * Operator config file ({@code settings.json}). SQLite keeps world state only.
- * A later OZ UI can write this same file and call {@link #load()}.
+ * The optional OZ UI writes this same file via {@link RepairService#addRepairable}
+ * / {@link RepairService#removeRepairable}.
  */
 public final class RepairSettingsStore {
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();

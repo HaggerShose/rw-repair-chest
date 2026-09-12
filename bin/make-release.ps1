@@ -7,6 +7,8 @@ $Readme = Join-Path $Root 'README.md'
 $Stage = Join-Path $Root 'target\release-stage'
 $PluginDir = Join-Path $Stage 'RepairChest'
 $Zip = Join-Path $Root 'RepairChest.zip'
+$DeployDir = 'C:\Program Files (x86)\Steam\steamapps\common\RisingWorld\Plugins\RepairChest'
+$DeployJar = Join-Path $DeployDir 'RepairChest.jar'
 
 Set-Location $Root
 Write-Host 'Building...'
@@ -29,4 +31,11 @@ if (Test-Path $Zip) {
 }
 Compress-Archive -Path (Join-Path $Stage '*') -DestinationPath $Zip
 
+Write-Host "Deploying to $DeployJar"
+if (-not (Test-Path $DeployDir)) {
+	New-Item -ItemType Directory -Path $DeployDir -Force | Out-Null
+}
+Copy-Item -Force $Jar $DeployJar
+
 Write-Host "Done: $Zip"
+Write-Host "Deployed: $DeployJar"
