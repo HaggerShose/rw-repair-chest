@@ -1,8 +1,6 @@
-package de.mahagst.risingworld.repairchest.message;
+package de.mahagst.risingworld.repairchest;
 
 import java.util.List;
-
-import de.mahagst.risingworld.repairchest.repair.RepairPricing;
 
 /**
  * Player chat and station sign copy. Tune here without touching logic.
@@ -11,6 +9,7 @@ public final class Messages {
 	public static final String READY = "Repair station ready.";
 	public static final String ONE_AT_A_TIME = "Just one item at a time.";
 	public static final String ALREADY_FULL = "Already at 100%.";
+	public static final String NO_RECIPE = "No usable crafting recipe.\nCannot repair this item.";
 	public static final String REPAIRING = "Repairing...";
 	public static final String COMPLETE = "<color=#00ff00>Repair complete.</color>\nTake your item.";
 	public static final String PUT_DAMAGED_ITEM = "Put your damaged Item into the Chest";

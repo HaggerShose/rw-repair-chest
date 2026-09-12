@@ -1,4 +1,4 @@
-package de.mahagst.risingworld.repairchest.database;
+package de.mahagst.risingworld.repairchest;
 
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -7,9 +7,6 @@ import java.sql.Types;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-
-import de.mahagst.risingworld.repairchest.model.RepairStation;
-import de.mahagst.risingworld.repairchest.model.WhitelistEntry;
 
 import net.risingworld.api.database.Database;
 
@@ -63,16 +60,29 @@ public final class RepairRepository {
 				""");
 	}
 
-	/** Seed a repairable item. NULL variant = any. INSERT OR IGNORE keeps operator edits. */
-	public void seedWhitelistItem(short typeId, String label) {
+	/**
+	 * Replace the repairable-item whitelist. Caller passes the resolved seed list from
+	 * {@code RepairSettings}; NULL variant = any.
+	 */
+	public void replaceWhitelist(List<WhitelistEntry> entries) {
+		database.execute("DELETE FROM repair_whitelist");
 		var sql = """
-				INSERT OR IGNORE INTO repair_whitelist (item_kind, type_id, variant, label)
-				VALUES ('item', ?, NULL, ?)
+				INSERT INTO repair_whitelist (item_kind, type_id, variant, label)
+				VALUES (?, ?, ?, ?)
 				""";
 		try (var prep = database.getConnection().prepareStatement(sql)) {
-			prep.setInt(1, typeId);
-			prep.setString(2, label);
-			prep.executeUpdate();
+			for (WhitelistEntry entry : entries) {
+				prep.setString(1, entry.itemKind());
+				prep.setInt(2, entry.typeId());
+				if (entry.variant() == null) {
+					prep.setNull(3, Types.INTEGER);
+				} else {
+					prep.setInt(3, entry.variant());
+				}
+				prep.setString(4, entry.label());
+				prep.addBatch();
+			}
+			prep.executeBatch();
 		} catch (SQLException e) {
 			e.printStackTrace();
 		}

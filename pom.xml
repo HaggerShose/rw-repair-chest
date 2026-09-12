@@ -18,6 +18,18 @@
 
   <dependencies>
     <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>5.11.4</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+      <version>5.15.2</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <groupId>net.rising-world</groupId>
       <artifactId>plugin-api</artifactId>
       <version>${rw.plugin.api.version}</version>

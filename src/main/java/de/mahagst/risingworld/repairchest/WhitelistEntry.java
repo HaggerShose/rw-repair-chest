@@ -1,4 +1,4 @@
-package de.mahagst.risingworld.repairchest.model;
+package de.mahagst.risingworld.repairchest;
 
 /** Whitelist row. variant null = any variant. */
 public record WhitelistEntry(String itemKind, short typeId, Integer variant, String label) {

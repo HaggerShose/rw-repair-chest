@@ -20,9 +20,14 @@ Notes:
 
 - While idle, nothing happens unless exactly **one damaged** whitelist item is in the chest (junk, full tools, coal alone: silent).
 - If two tools are put in and one is taken out again, the station wakes after the debounce.
-- Gold ingots use the same staffel for **every** repair (10; below 15% durability -> 15; below 10% -> 20). Other mats are per-tool in `RepairPricing`.
-- Bows (`bow1`) need yarn, lumber, any knife, and gold. Crossbows need yarn, an iron plate, any knife, and gold. The knife is a tool requirement and is **not** consumed.
-- Repeater and morning star (`morningstar1`) need lumber, an iron plate, and gold.
+- Repair materials come from the live Rising World crafting recipe for the target item and variant (`Definitions.getRecipe`), not from hardcoded tables.
+- Durability share uses exact values (no floor-to-percent first). Above 15% remaining, each consumed material costs
+  `ceil(ingredient.count * missingDurability / (maxDurability * recipe.amount))`.
+- At **15% remaining or below** (including 0%), the full per-item recipe price applies:
+  `ceil(ingredient.count / recipe.amount)`. Exactly 15.0% counts as full price.
+- Every repair also costs a flat **5 gold ingots**, on top of any gold already in the crafting recipe. Full-durability items are not repaired or charged.
+- Recipe tools marked reusable (`consume = false`) must be present in the full recipe quantity and are not consumed (sign shows `(tool)`). Crafting stations are not material requirements.
+- The SQLite whitelist still decides which items can be repaired. Missing, empty or unusable crafting recipes block repair (`No usable crafting recipe`); there is no gold-only fallback.
 - Pressing F on a registered sign (idle only) shows chat `Put your damaged Item into the Chest`. Sign text cannot be edited.
 - Only the admin who runs a command gets command feedback. Station messages go to the linked sign; chat is used only if the station has no sign.
 
@@ -66,41 +71,26 @@ On startup, missing or replaced chests are cleaned out of the database so dead e
 
 ## Source structure
 
-All packages below are under `de.mahagst.risingworld.repairchest` in one Maven project and one plugin JAR.
+Flat package `de.mahagst.risingworld.repairchest` -- one Maven project, one plugin JAR.
 
 ```text
-repairchest/
-    RepairChestPlugin.java
-    command/
-        RepairCommands.java
-    config/
-        RepairSettings.java
-    database/
-        RepairRepository.java
-    integration/
-        SettingsUiIntegration.java
-    listener/
-        RepairListener.java
-    message/
-        Messages.java
-    model/
-        RepairStation.java
-        WhitelistEntry.java
-    repair/
-        RepairService.java
-        RepairPricing.java
+RepairChestPlugin.java   -- lifecycle
+RepairCommands.java      -- commands + storage/sign events
+RepairService.java       -- put/take/scan/repair + timers
+StationRegistry.java     -- RAM index, identity, lock/sign
+RepairPricing.java       -- recipe quote, gold fee, allocation
+RepairRepository.java    -- SQLite
+RepairSettings.java      -- all knobs (defaults())
+Messages.java
+RepairStation.java
+WhitelistEntry.java
 ```
 
-- `RepairChestPlugin` creates the components, opens/closes SQLite and registers/unregisters listeners.
-- `RepairCommands` handles command parsing, operator access and focus resolution.
-- `RepairListener` handles storage/sign events and delegates station operations to `RepairService`.
-- `RepairService` owns station state, timers, identity checks, feedback and repair execution. `RepairPricing` calculates material requirements.
-- `RepairRepository` handles the SQLite schema and queries; `model` holds station and whitelist records.
-- `Messages` contains chat/sign text.
-- `RepairSettings` holds the existing timer values and allowed chest types. The plugin currently uses `defaults()`; JSON loading and saving are a later step.
-- `SettingsUiIntegration` defines only `register()` / `unregister()` for a future optional settings UI. The OZ adapter and conditional loading are a later step; OZ imports will be confined to that adapter.
+Pricing uses live API recipes plus a flat gold fee. Startup replaces the whitelist from `RepairSettings` seeds. OZ Tools is compile-only; runtime stays standalone.
 
-This structural refactor keeps the existing recipes, database format and repair flow. It does not activate an OZ UI.
+## Verify
+
+Run `mvn -B clean verify`. Tests cover rounding, the 15% boundary, gold fee, variants/batches, missing recipes, allocation and repair-before-consume. In-game smoke test still needed.
 
 ## License
 

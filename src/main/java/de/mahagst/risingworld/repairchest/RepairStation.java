@@ -1,4 +1,4 @@
-package de.mahagst.risingworld.repairchest.model;
+package de.mahagst.risingworld.repairchest;
 
 /** One registered repair station (chest + optional sign). */
 public record RepairStation(

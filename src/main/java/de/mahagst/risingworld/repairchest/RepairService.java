@@ -1,16 +1,10 @@
-package de.mahagst.risingworld.repairchest.repair;
+package de.mahagst.risingworld.repairchest;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-
-import de.mahagst.risingworld.repairchest.config.RepairSettings;
-import de.mahagst.risingworld.repairchest.database.RepairRepository;
-import de.mahagst.risingworld.repairchest.message.Messages;
-import de.mahagst.risingworld.repairchest.model.RepairStation;
-import de.mahagst.risingworld.repairchest.model.WhitelistEntry;
 
 import net.risingworld.api.Server;
 import net.risingworld.api.Timer;
@@ -24,23 +18,14 @@ import net.risingworld.api.objects.Sign;
 import net.risingworld.api.objects.Storage;
 import net.risingworld.api.objects.world.ObjectElement;
 import net.risingworld.api.ui.style.TextAnchor;
-import net.risingworld.api.utils.Vector3f;
 
 /**
  * Admin-registered named repair stations: put a damaged whitelisted item,
  * quote materials on a linked sign, lock briefly, restore durability, consume mats.
  */
 public final class RepairService {
-	static final float MAX_IDENTITY_DISTANCE = 5f;
 	public static final long LOCK_INFO = 1L;
 	static final long UNLOCK_INFO = 0L;
-	static final short FALLBACK_DRILL_ID = 134;
-	static final short FALLBACK_CHAINSAW_ID = 132;
-	static final short FALLBACK_TRIMMER_ID = 136;
-	static final short FALLBACK_BOW1_ID = 195;
-	static final short FALLBACK_CROSSBOW_ID = 205;
-	static final short FALLBACK_REPEATER_ID = 300;
-	static final short FALLBACK_MORNINGSTAR_ID = 250;
 	static final String KIND_ITEM = "item";
 	static final String KIND_OBJECT = "object";
 	static final String KIND_CONSTRUCTION = "construction";
@@ -49,9 +34,7 @@ public final class RepairService {
 	private final RepairRepository repository;
 	private final RepairSettings settings;
 	private final Consumer<Runnable> enqueue;
-	/** Membership + current state; SQLite remains source of truth. */
-	private final Map<Long, RepairStation> stationsByStorageId = new HashMap<>();
-	private final Map<Long, Long> signIdToStorageId = new HashMap<>();
+	private final StationRegistry stations;
 	private final Map<Long, Timer> debounceTimers = new HashMap<>();
 	private final Map<Long, Timer> repairTimers = new HashMap<>();
 	private final Map<Long, String> lastActorUid = new HashMap<>();
@@ -61,20 +44,24 @@ public final class RepairService {
 		this.repository = repository;
 		this.settings = settings;
 		this.enqueue = enqueue;
+		this.stations = new StationRegistry(repository, settings);
 	}
 
 	/** Load stations, validate identities and reset to idle before listeners start. */
 	public void start() {
-		repository.seedWhitelistItem(resolveItemId("miningdrill", FALLBACK_DRILL_ID), "miningdrill");
-		repository.seedWhitelistItem(resolveItemId("chainsaw", FALLBACK_CHAINSAW_ID), "chainsaw");
-		repository.seedWhitelistItem(resolveItemId("trimmer", FALLBACK_TRIMMER_ID), "trimmer");
-		repository.seedWhitelistItem(resolveItemId("bow1", FALLBACK_BOW1_ID), "bow1");
-		repository.seedWhitelistItem(resolveItemId("crossbow", FALLBACK_CROSSBOW_ID), "crossbow");
-		repository.seedWhitelistItem(resolveItemId("repeater", FALLBACK_REPEATER_ID), "repeater");
-		repository.seedWhitelistItem(resolveItemId("morningstar1", FALLBACK_MORNINGSTAR_ID), "morningstar1");
+		syncWhitelistFromSettings();
+		stations.loadAll();
+		stations.sweepAndResetIdle();
+	}
+
+	private void syncWhitelistFromSettings() {
+		var entries = new ArrayList<WhitelistEntry>();
+		for (var seed : settings.whitelistSeeds()) {
+			short typeId = resolveItemId(seed.name(), seed.fallbackTypeId());
+			entries.add(new WhitelistEntry(KIND_ITEM, typeId, null, seed.name()));
+		}
+		repository.replaceWhitelist(entries);
 		whitelist = repository.findWhitelist();
-		loadStations();
-		sweepAndResetIdle();
 	}
 
 	public void stop() {
@@ -82,17 +69,20 @@ public final class RepairService {
 	}
 
 	public boolean isRepairing(long storageId) {
-		RepairStation station = stationsByStorageId.get(storageId);
+		RepairStation station = stations.get(storageId);
 		return station != null && station.isRepairing();
 	}
 
 	public boolean isStationSign(long signId) {
-		return signIdToStorageId.containsKey(signId);
+		return stations.containsSign(signId);
 	}
 
 	public boolean isIdleSign(long signId) {
-		Long storageId = signIdToStorageId.get(signId);
-		RepairStation station = stationsByStorageId.get(storageId);
+		Long storageId = stations.storageIdForSign(signId);
+		if (storageId == null) {
+			return false;
+		}
+		RepairStation station = stations.get(storageId);
 		return station != null && station.isIdle();
 	}
 
@@ -102,12 +92,12 @@ public final class RepairService {
 			player.sendTextMessage(Messages.NOT_STORAGE_CHEST);
 			return;
 		}
-		String typeName = objectType(object);
+		String typeName = StationRegistry.objectType(object);
 		if (!settings.allowedChestTypes().contains(typeName)) {
 			player.sendTextMessage(Messages.chestTypeNotAllowed(typeName, object.getTypeID()));
 			return;
 		}
-		if (stationsByStorageId.containsKey(storage.getID())) {
+		if (stations.containsStorage(storage.getID())) {
 			player.sendTextMessage(Messages.CHEST_ALREADY_REGISTERED);
 			return;
 		}
@@ -126,7 +116,7 @@ public final class RepairService {
 				pos.x,
 				pos.y,
 				pos.z,
-				objectType(object),
+				StationRegistry.objectType(object),
 				storage.getCreationDate(),
 				null, null, null, null, null,
 				null, null, null, null, null,
@@ -136,7 +126,7 @@ public final class RepairService {
 			player.sendTextMessage(Messages.SAVE_FAILED);
 			return;
 		}
-		putStation(station);
+		stations.put(station);
 		player.sendTextMessage(Messages.chestCreated(name));
 	}
 
@@ -147,11 +137,11 @@ public final class RepairService {
 			return;
 		}
 		RepairStation station = existing.get();
-		if (!verifyOrDrop(station)) {
+		if (!stations.verifyOrDrop(station)) {
 			player.sendTextMessage(Messages.CHEST_INVALID);
 			return;
 		}
-		station = stationsByStorageId.get(station.storageId());
+		station = stations.get(station.storageId());
 		if (station == null) {
 			player.sendTextMessage(Messages.CHEST_INVALID);
 			return;
@@ -161,7 +151,7 @@ public final class RepairService {
 			return;
 		}
 		long signId = sign.getID();
-		if (signIdToStorageId.containsKey(signId)) {
+		if (stations.containsSign(signId)) {
 			player.sendTextMessage(Messages.SIGN_ALREADY_LINKED);
 			return;
 		}
@@ -175,16 +165,16 @@ public final class RepairService {
 				pos.x,
 				pos.y,
 				pos.z,
-				objectType(object),
+				StationRegistry.objectType(object),
 				object.getCreationDate());
 		repository.linkSign(linked);
-		putStation(linked);
-		updateSign(linked, Messages.READY);
+		stations.put(linked);
+		stations.updateSign(linked, Messages.READY);
 		player.sendTextMessage(Messages.signLinked(name));
 	}
 
 	public void remove(Player player, ObjectElement object, Storage storage) {
-		RepairStation station = stationsByStorageId.get(storage.getID());
+		RepairStation station = stations.get(storage.getID());
 		if (station == null) {
 			player.sendTextMessage(Messages.CHEST_NOT_REGISTERED);
 			return;
@@ -217,23 +207,23 @@ public final class RepairService {
 	}
 
 	private RepairStation requireValid(Player player, Storage storage) {
-		RepairStation station = stationsByStorageId.get(storage.getID());
+		RepairStation station = stations.get(storage.getID());
 		if (station == null) {
 			player.sendTextMessage(Messages.CHEST_NOT_REGISTERED);
 			return null;
 		}
-		if (!verifyOrDrop(station)) {
+		if (!stations.verifyOrDrop(station)) {
 			player.sendTextMessage(Messages.CHEST_INVALID);
 			return null;
 		}
-		return stationsByStorageId.get(storage.getID());
+		return stations.get(storage.getID());
 	}
 
 	public void onPut(Storage storage, Player player) {
 		if (storage == null) {
 			return;
 		}
-		RepairStation station = stationsByStorageId.get(storage.getID());
+		RepairStation station = stations.get(storage.getID());
 		if (station == null || station.isRepairing()) {
 			return;
 		}
@@ -245,7 +235,7 @@ public final class RepairService {
 		if (storage == null) {
 			return;
 		}
-		RepairStation station = stationsByStorageId.get(storage.getID());
+		RepairStation station = stations.get(storage.getID());
 		if (station == null || station.isRepairing()) {
 			return;
 		}
@@ -254,16 +244,16 @@ public final class RepairService {
 		// Do not scan storage immediately -- the item is often still listed in the event frame.
 		if (station.isDone()) {
 			cancelDebounce(storage.getID());
-			if (!verifyOrDrop(station)) {
+			if (!stations.verifyOrDrop(station)) {
 				return;
 			}
-			station = stationsByStorageId.get(storage.getID());
+			station = stations.get(storage.getID());
 			if (station == null) {
 				return;
 			}
 			if (taken != null && isWhitelisted(taken)) {
-				setState(station, RepairStation.IDLE);
-				notifyStation(stationsByStorageId.get(storage.getID()), player, Messages.READY);
+				stations.setState(station, RepairStation.IDLE);
+				notifyStation(stations.get(storage.getID()), player, Messages.READY);
 				return;
 			}
 			restartDebounce(storage.getID(), settings.postTakeScanSeconds());
@@ -286,17 +276,17 @@ public final class RepairService {
 
 	private void onDebounceDue(long storageId) {
 		debounceTimers.remove(storageId);
-		RepairStation station = stationsByStorageId.get(storageId);
+		RepairStation station = stations.get(storageId);
 		if (station == null) {
 			return;
 		}
 		if (station.isRepairing()) {
 			return;
 		}
-		if (!verifyOrDrop(station)) {
+		if (!stations.verifyOrDrop(station)) {
 			return;
 		}
-		station = stationsByStorageId.get(storageId);
+		station = stations.get(storageId);
 		if (station == null) {
 			return;
 		}
@@ -313,8 +303,8 @@ public final class RepairService {
 		Item[] items = storage.getItems();
 		if (station.isDone()) {
 			if (countWhitelisted(items, false) == 0) {
-				setState(station, RepairStation.IDLE);
-				notifyStation(stationsByStorageId.get(station.storageId()), player, Messages.READY);
+				stations.setState(station, RepairStation.IDLE);
+				notifyStation(stations.get(station.storageId()), player, Messages.READY);
 			}
 			return;
 		}
@@ -326,31 +316,39 @@ public final class RepairService {
 			return;
 		}
 		if (any == 0) {
-			setState(station, RepairStation.IDLE);
-			notifyStation(stationsByStorageId.get(station.storageId()), player, Messages.READY);
+			stations.setState(station, RepairStation.IDLE);
+			notifyStation(stations.get(station.storageId()), player, Messages.READY);
 			return;
 		}
 		if (any > 1) {
-			setState(station, RepairStation.QUOTED);
-			notifyStation(stationsByStorageId.get(station.storageId()), player, Messages.ONE_AT_A_TIME);
+			stations.setState(station, RepairStation.QUOTED);
+			notifyStation(stations.get(station.storageId()), player, Messages.ONE_AT_A_TIME);
 			return;
 		}
 		// Exactly one whitelisted item.
 		if (damaged == 0) {
-			setState(station, RepairStation.QUOTED);
-			notifyStation(stationsByStorageId.get(station.storageId()), player, Messages.ALREADY_FULL);
+			stations.setState(station, RepairStation.QUOTED);
+			notifyStation(stations.get(station.storageId()), player, Messages.ALREADY_FULL);
 			return;
 		}
 		Item target = firstWhitelisted(items, true);
 		if (target == null) {
-			setState(station, RepairStation.IDLE);
-			notifyStation(stationsByStorageId.get(station.storageId()), player, Messages.READY);
+			stations.setState(station, RepairStation.IDLE);
+			notifyStation(stations.get(station.storageId()), player, Messages.READY);
 			return;
 		}
-		List<RepairPricing.Need> recipe = RepairPricing.recipeFor(target);
-		List<RepairPricing.Need> missing = missingNeeds(items, recipe);
-		setState(station, RepairStation.QUOTED);
-		station = stationsByStorageId.get(station.storageId());
+		var recipe = RepairPricing.recipeFor(target, settings);
+		stations.setState(station, RepairStation.QUOTED);
+		station = stations.get(station.storageId());
+		if (recipe.isEmpty()) {
+			Items.ItemDefinition def = target.getDefinition();
+			System.out.println("[RepairChest] No usable crafting recipe for "
+					+ (def != null ? def.name : "?") + " variant " + target.getVariant()
+					+ " (type " + target.getTypeID() + ")");
+			notifyStation(station, player, Messages.NO_RECIPE);
+			return;
+		}
+		List<RepairPricing.Need> missing = RepairPricing.plan(items, target, recipe.get()).missing();
 		if (!missing.isEmpty()) {
 			notifyStation(station, player, Messages.needs(missing), TextAnchor.UpperLeft);
 			return;
@@ -361,12 +359,12 @@ public final class RepairService {
 	private void beginRepair(RepairStation station, Player player) {
 		long storageId = station.storageId();
 		cancelDebounce(storageId);
-		setState(station, RepairStation.REPAIRING);
-		station = stationsByStorageId.get(storageId);
+		stations.setState(station, RepairStation.REPAIRING);
+		station = stations.get(storageId);
 		if (station == null) {
 			return;
 		}
-		lock(station);
+		stations.lock(station);
 		if (player != null) {
 			player.hideStorage();
 		}
@@ -379,14 +377,14 @@ public final class RepairService {
 
 	private void onRepairDue(long storageId) {
 		repairTimers.remove(storageId);
-		RepairStation station = stationsByStorageId.get(storageId);
+		RepairStation station = stations.get(storageId);
 		if (station == null) {
 			return;
 		}
-		if (!verifyOrDrop(station)) {
+		if (!stations.verifyOrDrop(station)) {
 			return;
 		}
-		station = stationsByStorageId.get(storageId);
+		station = stations.get(storageId);
 		if (station == null) {
 			return;
 		}
@@ -399,30 +397,45 @@ public final class RepairService {
 		Item[] items = storage.getItems();
 		Item target = firstWhitelisted(items, true);
 		if (target == null) {
-			unlock(station);
-			setState(station, RepairStation.IDLE);
-			notifyStation(stationsByStorageId.get(storageId), player, Messages.READY);
+			stations.unlock(station);
+			stations.setState(station, RepairStation.IDLE);
+			notifyStation(stations.get(storageId), player, Messages.READY);
 			return;
 		}
 		// Quote while still damaged, then durability, then consume.
-		List<RepairPricing.Need> recipe = RepairPricing.recipeFor(target);
+		var recipe = RepairPricing.recipeFor(target, settings);
+		if (recipe.isEmpty()) {
+			stations.unlock(station);
+			stations.setState(station, RepairStation.QUOTED);
+			notifyStation(stations.get(storageId), player, Messages.NO_RECIPE);
+			return;
+		}
+		RepairPricing.Plan materials = RepairPricing.plan(items, target, recipe.get());
+		if (!materials.missing().isEmpty()) {
+			stations.unlock(station);
+			stations.setState(station, RepairStation.QUOTED);
+			notifyStation(stations.get(storageId), player, Messages.needs(materials.missing()),
+					TextAnchor.UpperLeft);
+			return;
+		}
 		Items.ItemDefinition def = target.getDefinition();
 		if (def != null && def.durability > 0) {
-			target.setDurability(def.durability);
+			repairAndConsume(target, def.durability, storage, materials);
 		}
-		for (RepairPricing.Need need : recipe) {
-			if (!need.consume()) {
-				continue;
-			}
-			int rest = storage.removeItem(need.typeId(), need.variant(), need.amount());
-			if (rest > 0) {
-				System.out.println("[RepairChest] Missing " + rest + "x " + need.label()
-						+ " after repair on " + station.name());
-			}
+		stations.unlock(station);
+		stations.setState(station, RepairStation.DONE);
+		notifyStation(stations.get(storageId), player, Messages.COMPLETE);
+	}
+
+	/** Restore durability first so a failed material removal cannot leave a broken tool. */
+	static void repairAndConsume(Item target, int maxDurability, Storage storage, RepairPricing.Plan materials) {
+		if (!materials.missing().isEmpty()) {
+			throw new IllegalArgumentException("Cannot repair without all required materials");
 		}
-		unlock(station);
-		setState(station, RepairStation.DONE);
-		notifyStation(stationsByStorageId.get(storageId), player, Messages.COMPLETE);
+		target.setDurability(maxDurability);
+		for (RepairPricing.Removal removal : materials.removals()) {
+			storage.removeItem(removal.slot(), removal.amount());
+		}
 	}
 
 	private int countWhitelisted(Item[] items, boolean damagedOnly) {
@@ -484,42 +497,6 @@ public final class RepairService {
 		return item.getDurability() < def.durability;
 	}
 
-	private static List<RepairPricing.Need> missingNeeds(Item[] items, List<RepairPricing.Need> recipe) {
-		var missing = new ArrayList<RepairPricing.Need>();
-		for (RepairPricing.Need need : recipe) {
-			int left = need.amount() - countMaterial(items, need);
-			if (left > 0) {
-				missing.add(new RepairPricing.Need(
-						need.typeId(), need.variant(), left, need.label(), need.consume()));
-			}
-		}
-		return missing;
-	}
-
-	private static int countMaterial(Item[] items, RepairPricing.Need recipe) {
-		int have = 0;
-		if (items == null) {
-			return 0;
-		}
-		for (Item item : items) {
-			if (item == null) {
-				continue;
-			}
-			if (!recipe.consume()) {
-				if (RepairPricing.isKnife(item)) {
-					have += Math.max(item.getStack(), 1);
-				}
-				continue;
-			}
-			if (itemKind(item).equals(KIND_ITEM)
-					&& item.getTypeID() == recipe.typeId()
-					&& item.getVariant() == recipe.variant()) {
-				have += item.getStack();
-			}
-		}
-		return have;
-	}
-
 	private static String itemKind(Item item) {
 		if (item instanceof Item.ObjectItem) {
 			return KIND_OBJECT;
@@ -546,202 +523,21 @@ public final class RepairService {
 		return item.getTypeID();
 	}
 
-	private void lock(RepairStation station) {
-		ObjectElement object = findObject(station);
-		if (object != null) {
-			object.setInfo(LOCK_INFO);
-		}
-	}
-
-	private void unlock(RepairStation station) {
-		ObjectElement object = findObject(station);
-		if (object != null) {
-			object.setInfo(UNLOCK_INFO);
-		}
-	}
-
-	private void updateSign(RepairStation station, String text) {
-		updateSign(station, text, TextAnchor.MiddleCenter);
-	}
-
-	private void updateSign(RepairStation station, String text, TextAnchor anchor) {
-		if (station == null || !station.hasSign()) {
-			return;
-		}
-		if (!verifySignOrUnlink(station)) {
-			return;
-		}
-		Sign sign = World.getSign(station.signId());
-		if (sign != null && sign.isValid()) {
-			sign.setTextAnchor(anchor);
-			sign.setText(text);
-		}
-	}
-
 	private void notifyStation(RepairStation station, Player player, String text) {
 		notifyStation(station, player, text, TextAnchor.MiddleCenter);
 	}
 
 	private void notifyStation(RepairStation station, Player player, String text, TextAnchor anchor) {
-		updateSign(station, text, anchor);
+		stations.updateSign(station, text, anchor);
 		if (player != null && (station == null || !station.hasSign())) {
 			player.sendTextMessage(text);
 		}
 	}
 
-	private void setState(RepairStation station, String state) {
-		repository.setState(station.storageId(), state);
-		RepairStation current = stationsByStorageId.get(station.storageId());
-		if (current != null) {
-			putStation(current.withState(state));
-		}
-	}
-
-	private void putStation(RepairStation station) {
-		RepairStation previous = stationsByStorageId.put(station.storageId(), station);
-		if (previous != null) {
-			unindexSign(previous);
-		}
-		indexSign(station);
-	}
-
-	private void indexSign(RepairStation station) {
-		if (station.signId() != null) {
-			signIdToStorageId.put(station.signId(), station.storageId());
-		}
-		if (station.signObjectId() != null) {
-			signIdToStorageId.put(station.signObjectId(), station.storageId());
-		}
-	}
-
-	private void unindexSign(RepairStation station) {
-		if (station.signId() != null) {
-			signIdToStorageId.remove(station.signId());
-		}
-		if (station.signObjectId() != null) {
-			signIdToStorageId.remove(station.signObjectId());
-		}
-	}
-
-	private boolean verifyOrDrop(RepairStation station) {
-		if (matchesChest(station, World.getStorage(station.storageId()), findObject(station))) {
-			return true;
-		}
-		drop(station.storageId());
-		return false;
-	}
-
-	/** Invalid sign -> unlink + log, chest stays. */
-	private boolean verifySignOrUnlink(RepairStation station) {
-		if (!station.hasSign()) {
-			return false;
-		}
-		if (matchesSign(station)) {
-			return true;
-		}
-		System.out.println("[RepairChest] Sign missing or moved for station " + station.name()
-				+ ", unlinking sign");
-		clearSignText(station);
-		unindexSign(station);
-		repository.clearSign(station.storageId());
-		RepairStation current = stationsByStorageId.get(station.storageId());
-		if (current != null) {
-			stationsByStorageId.put(station.storageId(), current.withoutSign());
-		}
-		return false;
-	}
-
 	private void drop(long storageId) {
-		RepairStation station = stationsByStorageId.get(storageId);
-		if (station != null) {
-			unlock(station);
-			clearSignText(station);
-			unindexSign(station);
-		}
 		cancelTimers(storageId);
-		repository.delete(storageId);
-		stationsByStorageId.remove(storageId);
 		lastActorUid.remove(storageId);
-	}
-
-	/** Blank linked sign text; world object stays. Used on remove/orphan drop. */
-	private void clearSignText(RepairStation station) {
-		if (station == null || !station.hasSign()) {
-			return;
-		}
-		Sign sign = World.getSign(station.signId());
-		if (sign != null && sign.isValid()) {
-			sign.setText("");
-		}
-	}
-
-	private static boolean matchesChest(RepairStation saved, Storage storage, ObjectElement object) {
-		if (storage == null || storage.isTransient()) {
-			return false;
-		}
-		if (storage.getCreationDate() != saved.creationDate()) {
-			return false;
-		}
-		if (object != null) {
-			if (!saved.objectType().equals(objectType(object))) {
-				return false;
-			}
-			Vector3f pos = object.getWorldPosition();
-			if (pos == null) {
-				return false;
-			}
-			float max = MAX_IDENTITY_DISTANCE * MAX_IDENTITY_DISTANCE;
-			if (pos.distanceSquared(saved.worldX(), saved.worldY(), saved.worldZ()) > max) {
-				return false;
-			}
-		}
-		return true;
-	}
-
-	private boolean matchesSign(RepairStation saved) {
-		Sign sign = World.getSign(saved.signId());
-		if (sign == null || !sign.isValid()) {
-			return false;
-		}
-		ObjectElement object = sign.getRelatedObject();
-		if (object == null && saved.signObjectId() != null && saved.signChunkX() != null) {
-			object = World.getObject(
-					saved.signObjectId(),
-					saved.signChunkX(),
-					saved.signChunkY(),
-					saved.signChunkZ());
-		}
-		if (object != null) {
-			if (saved.signObjectType() != null && !saved.signObjectType().equals(objectType(object))) {
-				return false;
-			}
-			if (saved.signWorldX() != null) {
-				Vector3f pos = object.getWorldPosition();
-				if (pos == null) {
-					return false;
-				}
-				float max = MAX_IDENTITY_DISTANCE * MAX_IDENTITY_DISTANCE;
-				if (pos.distanceSquared(saved.signWorldX(), saved.signWorldY(), saved.signWorldZ()) > max) {
-					return false;
-				}
-			}
-			if (saved.signCreationDate() != null && object.getCreationDate() != saved.signCreationDate()) {
-				return false;
-			}
-		}
-		return true;
-	}
-
-	private static ObjectElement findObject(RepairStation station) {
-		return World.getObject(station.objectId(), station.chunkX(), station.chunkY(), station.chunkZ());
-	}
-
-	private static String objectType(ObjectElement object) {
-		var def = object.getDefinition();
-		if (def != null && def.name != null) {
-			return def.name;
-		}
-		return Short.toString(object.getTypeID());
+		stations.drop(storageId);
 	}
 
 	private static short resolveItemId(String name, short fallback) {
@@ -764,41 +560,6 @@ public final class RepairService {
 			return null;
 		}
 		return Server.getPlayerByUID(uid);
-	}
-
-	private void loadStations() {
-		for (RepairStation station : repository.findAll()) {
-			putStation(station);
-		}
-	}
-
-	/**
-	 * Verify every row, drop orphans, unlink bad signs, force idle + unlock.
-	 * Do not scan contents and do not resume repairing.
-	 */
-	private void sweepAndResetIdle() {
-		for (RepairStation station : List.copyOf(stationsByStorageId.values())) {
-			if (!verifyOrDrop(station)) {
-				continue;
-			}
-			RepairStation current = stationsByStorageId.get(station.storageId());
-			if (current == null) {
-				continue;
-			}
-			if (current.hasSign()) {
-				verifySignOrUnlink(current);
-				current = stationsByStorageId.get(station.storageId());
-				if (current == null) {
-					continue;
-				}
-			}
-			unlock(current);
-			setState(current, RepairStation.IDLE);
-			current = stationsByStorageId.get(station.storageId());
-			if (current != null && current.hasSign()) {
-				updateSign(current, Messages.READY);
-			}
-		}
 	}
 
 	private void cancelDebounce(long storageId) {
@@ -834,5 +595,4 @@ public final class RepairService {
 		}
 		repairTimers.clear();
 	}
-
 }
