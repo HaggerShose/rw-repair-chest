@@ -117,7 +117,7 @@ public record RepairSettings(
 
 	public static RepairSettings defaults() {
 		return new RepairSettings(
-				1f,
+				0.5f,
 				0.25f,
 				2f,
 				5f,

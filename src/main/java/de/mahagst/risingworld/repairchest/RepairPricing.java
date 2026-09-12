@@ -36,7 +36,7 @@ public final class RepairPricing {
 		}
 	}
 
-	record Removal(int slot, int amount) {
+	record Removal(int slot, int amount, short typeId) {
 	}
 
 	record Plan(List<Need> missing, List<Removal> removals) {
@@ -111,17 +111,23 @@ public final class RepairPricing {
 		return scale(counts, durability, maxDurability, recipe.amount, settings);
 	}
 
+	/**
+	 * Allocate chest slots for a quote. Never consumes the repair target, and never consumes
+	 * items with durability (tools/weapons) -- even if a recipe group would match them.
+	 */
 	static Plan plan(Item[] items, Item target, List<Need> recipe) {
 		if (items == null) {
 			return new Plan(List.copyOf(recipe), List.of());
 		}
+		int targetSlot = indexOf(items, target);
 		int[] available = new int[items.length];
 		int[] consumed = new int[items.length];
 		for (int slot = 0; slot < items.length; slot++) {
 			Item item = items[slot];
-			if (item != null && !item.equals(target)) {
-				available[slot] = Math.max(item.getStack(), 0);
+			if (item == null || slot == targetSlot) {
+				continue;
 			}
+			available[slot] = Math.max(item.getStack(), 0);
 		}
 		var ordered = new ArrayList<>(recipe);
 		ordered.sort(Comparator.comparing((Need need) -> need.group() != null).thenComparing(Need::consume));
@@ -129,7 +135,11 @@ public final class RepairPricing {
 		for (Need need : ordered) {
 			int left = need.amount();
 			for (int slot = 0; slot < items.length && left > 0; slot++) {
-				if (available[slot] == 0 || !need.matches(items[slot])) {
+				if (available[slot] == 0 || slot == targetSlot || !need.matches(items[slot])) {
+					continue;
+				}
+				// Consumable mats only -- durable tools may satisfy consume=false catalysts.
+				if (need.consume() && hasDurability(items[slot])) {
 					continue;
 				}
 				int used = Math.min(left, available[slot]);
@@ -147,11 +157,32 @@ public final class RepairPricing {
 		if (missing.isEmpty()) {
 			for (int slot = 0; slot < consumed.length; slot++) {
 				if (consumed[slot] > 0) {
-					removals.add(new Removal(slot, consumed[slot]));
+					removals.add(new Removal(slot, consumed[slot], items[slot].getTypeID()));
 				}
 			}
 		}
 		return new Plan(List.copyOf(missing), List.copyOf(removals));
+	}
+
+	static boolean hasDurability(Item item) {
+		if (item == null) {
+			return false;
+		}
+		Items.ItemDefinition def = item.getDefinition();
+		return def != null && def.durability > 0;
+	}
+
+	private static int indexOf(Item[] items, Item target) {
+		if (items == null || target == null) {
+			return -1;
+		}
+		for (int slot = 0; slot < items.length; slot++) {
+			Item item = items[slot];
+			if (item == target || (item != null && item.equals(target))) {
+				return slot;
+			}
+		}
+		return -1;
 	}
 
 	/** null = unusable; empty = already full. */

@@ -1,5 +1,7 @@
 package de.mahagst.risingworld.repairchest.oz;
 
+import java.util.List;
+
 import de.mahagst.risingworld.repairchest.RepairService;
 import de.mahagst.risingworld.repairchest.RepairSettings;
 import de.omegazirkel.risingworld.tools.ui.BasePlayerPluginSettingsPanel;
@@ -7,17 +9,19 @@ import de.omegazirkel.risingworld.tools.ui.ButtonFactory;
 import de.omegazirkel.risingworld.tools.ui.OZUIElement;
 import de.omegazirkel.risingworld.tools.ui.PlayerPluginSettings;
 import de.omegazirkel.risingworld.tools.ui.PlayerPluginSettingsOverlay;
+import de.omegazirkel.risingworld.tools.ui.table.TableCell;
+import de.omegazirkel.risingworld.tools.ui.table.TableRow;
+import de.omegazirkel.risingworld.tools.ui.table.TableScrollView;
 import net.risingworld.api.assets.TextureAsset;
 import net.risingworld.api.definitions.Definitions;
 import net.risingworld.api.definitions.Items;
 import net.risingworld.api.objects.Player;
 import net.risingworld.api.ui.UIElement;
 import net.risingworld.api.ui.UILabel;
+import net.risingworld.api.ui.UIScrollView;
 import net.risingworld.api.ui.UITarget;
-import net.risingworld.api.ui.style.Align;
 import net.risingworld.api.ui.style.DisplayStyle;
 import net.risingworld.api.ui.style.FlexDirection;
-import net.risingworld.api.ui.style.Position;
 import net.risingworld.api.ui.style.ScaleMode;
 import net.risingworld.api.ui.style.Unit;
 import net.risingworld.api.utils.ItemData;
@@ -28,6 +32,8 @@ import net.risingworld.api.utils.ItemData;
  */
 public final class OzWhitelistUi extends PlayerPluginSettings {
 	private static final String OZ_OVERLAY_ATTRIBUTE = "tools.ui.overlay";
+	private static final List<String> COLUMNS = List.of("Icon", "Name", "Id", "Action");
+	private static final List<Float> COLUMN_WIDTHS = List.of(10f, 37f, 28f, 25f);
 
 	private static volatile boolean registered;
 
@@ -73,55 +79,77 @@ public final class OzWhitelistUi extends PlayerPluginSettings {
 		@Override
 		protected void redrawContent() {
 			flexWrapper.removeAllChilds();
+			hideHorizontalScroll(settingsContainer);
 			if (!registered) {
 				return;
 			}
+			OZUIElement body = fullWidthColumn();
 			if (!ui.service.isAllowed(player)) {
-				flexWrapper.addChild(header("Admins only"));
+				body.addChild(line("Admins only", 18f));
+				flexWrapper.addChild(body);
 				return;
 			}
-			flexWrapper.addChild(header("Repairable items"));
-			flexWrapper.addChild(addCard());
-			for (RepairSettings.WhitelistSeed seed : ui.service.settings().whitelistSeeds()) {
-				flexWrapper.addChild(itemCard(seed));
-			}
-		}
-
-		private OZUIElement header(String title) {
-			OZUIElement box = fullWidthColumn();
-			box.addChild(line(title, 18f));
+			body.addChild(line("Repairable items", 18f));
 			if (ui.lastStatus != null && !ui.lastStatus.isBlank()) {
-				box.addChild(line(ui.lastStatus, 14f));
+				body.addChild(line(ui.lastStatus, 14f));
 			}
-			return box;
+			body.addChild(buildTable());
+			flexWrapper.addChild(body);
 		}
 
-		private OZUIElement addCard() {
-			OZUIElement card = tile();
-			card.addChild(line("Add item", 16f));
-			card.addChild(pinBottomRight(ButtonFactory.ok("Add", event -> pickItem())));
-			return card;
+		private TableScrollView buildTable() {
+			var seeds = ui.service.settings().whitelistSeeds();
+			TableScrollView table = new TableScrollView(COLUMNS, COLUMN_WIDTHS);
+			table.style.width.set(100f, Unit.Percent);
+			hideTableHorizontalScroll(table);
+			float rows = seeds.size() + 1f;
+			table.setScrollBodyHeight(Math.min(360f, Math.max(64f, rows * 34f)));
+			for (RepairSettings.WhitelistSeed seed : seeds) {
+				table.addRow(itemRow(seed));
+			}
+			table.addRow(addRow());
+			return table;
 		}
 
-		private OZUIElement itemCard(RepairSettings.WhitelistSeed seed) {
+		private TableRow itemRow(RepairSettings.WhitelistSeed seed) {
 			Items.ItemDefinition def = definitionOf(seed);
-			OZUIElement card = tile();
-			card.addChild(itemIcon(def));
-			card.addChild(line(displayName(def, seed.name()), 16f));
-			card.addChild(line(seed.name() + " (" + seed.fallbackTypeId() + ")", 12f));
 			String name = seed.name();
-			card.addChild(pinBottomRight(ButtonFactory.danger("Remove", event -> removeItem(name))));
-			return card;
+			OZUIElement remove = ButtonFactory.danger("Remove", event -> removeItem(name));
+			remove.setSize(78f, 24f, false);
+			return new TableRow(List.of(
+					new TableCell(itemIcon(def), COLUMN_WIDTHS.get(0)),
+					new TableCell(cellText(displayName(def, seed.name())), COLUMN_WIDTHS.get(1)),
+					new TableCell(cellText(seed.name() + " (" + seed.fallbackTypeId() + ")"), COLUMN_WIDTHS.get(2)),
+					new TableCell(remove, COLUMN_WIDTHS.get(3))));
 		}
 
-		private OZUIElement tile() {
-			OZUIElement card = defaultSettingsContainer();
-			card.style.position.set(Position.Relative);
-			card.style.flexDirection.set(FlexDirection.Column);
-			card.style.alignItems.set(Align.FlexStart);
-			card.style.minHeight.set(140f, Unit.Pixel);
-			card.style.paddingBottom.set(42f, Unit.Pixel);
-			return card;
+		private TableRow addRow() {
+			OZUIElement add = ButtonFactory.ok("Add", event -> pickItem());
+			add.setSize(78f, 24f, false);
+			return new TableRow(List.of(
+					new TableCell(null, COLUMN_WIDTHS.get(0)),
+					new TableCell(cellText("Add item"), COLUMN_WIDTHS.get(1)),
+					new TableCell(null, COLUMN_WIDTHS.get(2)),
+					new TableCell(add, COLUMN_WIDTHS.get(3))));
+		}
+
+		private static void hideHorizontalScroll(UIScrollView scroll) {
+			if (scroll != null) {
+				scroll.setHorizontalScrollerVisibility(UIScrollView.ScrollerVisibility.Hidden);
+			}
+		}
+
+		private static void hideTableHorizontalScroll(TableScrollView table) {
+			try {
+				var field = TableScrollView.class.getDeclaredField("scrollView");
+				field.setAccessible(true);
+				Object value = field.get(table);
+				if (value instanceof UIScrollView scroll) {
+					hideHorizontalScroll(scroll);
+				}
+			} catch (ReflectiveOperationException e) {
+				System.out.println("[RepairChest] Could not hide table horizontal scrollbar: " + e.getMessage());
+			}
 		}
 
 		private void pickItem() {
@@ -203,8 +231,8 @@ public final class OzWhitelistUi extends PlayerPluginSettings {
 
 		private static UIElement itemIcon(Items.ItemDefinition def) {
 			UIElement icon = new UIElement();
-			icon.style.width.set(64f, Unit.Pixel);
-			icon.style.height.set(64f, Unit.Pixel);
+			icon.style.width.set(24f, Unit.Pixel);
+			icon.style.height.set(24f, Unit.Pixel);
 			if (def != null) {
 				TextureAsset texture = def.getIcon(0);
 				if (texture != null) {
@@ -213,6 +241,12 @@ public final class OzWhitelistUi extends PlayerPluginSettings {
 				}
 			}
 			return icon;
+		}
+
+		private static UILabel cellText(String text) {
+			UILabel label = new UILabel(text);
+			label.setFontSize(13f);
+			return label;
 		}
 
 		private static OZUIElement fullWidthColumn() {
@@ -229,14 +263,6 @@ public final class OzWhitelistUi extends PlayerPluginSettings {
 			label.style.width.set(100f, Unit.Percent);
 			label.style.minHeight.set(size + 6f, Unit.Pixel);
 			return label;
-		}
-
-		private static OZUIElement pinBottomRight(OZUIElement button) {
-			button.setSize(78f, 28f, false);
-			button.style.position.set(Position.Absolute);
-			button.style.right.set(10f, Unit.Pixel);
-			button.style.bottom.set(10f, Unit.Pixel);
-			return button;
 		}
 	}
 }

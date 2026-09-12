@@ -493,7 +493,22 @@ public final class RepairService {
 		}
 		target.setDurability(maxDurability);
 		for (RepairPricing.Removal removal : materials.removals()) {
-			storage.removeItem(removal.slot(), removal.amount());
+			Item current = storage.getItem(removal.slot());
+			if (current == null || current.getTypeID() != removal.typeId()) {
+				System.out.println("[RepairChest] Aborting further material removal: slot "
+						+ removal.slot() + " no longer matches planned item type "
+						+ removal.typeId());
+				break;
+			}
+			if (RepairPricing.hasDurability(current)) {
+				System.out.println("[RepairChest] Refusing to consume durable item in slot "
+						+ removal.slot() + " (type " + current.getTypeID() + ")");
+				break;
+			}
+			int amount = Math.min(removal.amount(), Math.max(current.getStack(), 0));
+			if (amount > 0) {
+				storage.removeItem(removal.slot(), amount);
+			}
 		}
 	}
 

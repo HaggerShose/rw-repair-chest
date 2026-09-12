@@ -217,7 +217,9 @@ class RepairPricingTest {
 		var items = new net.risingworld.api.objects.Item[]{item(470, 0, 3), item(470, 1, 20), null, item(470, 0, 10)};
 		var plan = RepairPricing.plan(items, null, java.util.List.of(need));
 		assertTrue(plan.missing().isEmpty());
-		assertEquals(java.util.List.of(new RepairPricing.Removal(0, 3), new RepairPricing.Removal(1, 5)), plan.removals());
+		assertEquals(java.util.List.of(
+				new RepairPricing.Removal(0, 3, (short) 470),
+				new RepairPricing.Removal(1, 5, (short) 470)), plan.removals());
 	}
 
 	@Test
@@ -233,5 +235,32 @@ class RepairPricingTest {
 		var plan = RepairPricing.plan(new net.risingworld.api.objects.Item[]{knife}, null, java.util.List.of(catalyst));
 		assertTrue(plan.missing().isEmpty());
 		assertTrue(plan.removals().isEmpty());
+	}
+
+	@Test
+	void neverConsumesDurableToolsEvenWhenGroupMatches() {
+		var sickle = item(55, 0, 1);
+		var sickleDef = definition(55, "sickle");
+		sickleDef.group = Items.Group.Hoe;
+		sickleDef.durability = 1000;
+		when(sickle.getDefinition()).thenReturn(sickleDef);
+		var plate = item(470, 0, 8);
+		var needPlate = new RepairPricing.Need((short) 470, 8, "ironplate", true, null);
+		var needHoe = new RepairPricing.Need((short) 0, 1, "any hoe", true, Items.Group.Hoe);
+		var plan = RepairPricing.plan(new net.risingworld.api.objects.Item[]{sickle, plate}, null,
+				java.util.List.of(needPlate, needHoe));
+		assertEquals(java.util.List.of(needHoe.withAmount(1)), plan.missing());
+		assertTrue(plan.removals().isEmpty());
+	}
+
+	@Test
+	void neverConsumesRepairTargetBySlotEvenWithoutEquals() {
+		var target = item(134, 0, 1);
+		var other = item(134, 0, 1);
+		var need = new RepairPricing.Need((short) 134, 1, "miningdrill", true, null);
+		var plan = RepairPricing.plan(new net.risingworld.api.objects.Item[]{target, other}, target,
+				java.util.List.of(need));
+		assertTrue(plan.missing().isEmpty());
+		assertEquals(java.util.List.of(new RepairPricing.Removal(1, 1, (short) 134)), plan.removals());
 	}
 }
