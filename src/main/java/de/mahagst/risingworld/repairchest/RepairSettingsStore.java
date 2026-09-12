@@ -98,7 +98,6 @@ public final class RepairSettingsStore {
 		List<ManualRecipeDto> manualRecipes;
 		List<String> allowedChestTypes;
 		List<WhitelistDto> whitelist;
-		List<String> allowedUids;
 
 		static FileDto from(RepairSettings settings) {
 			var dto = new FileDto();
@@ -128,7 +127,6 @@ public final class RepairSettingsStore {
 			for (var seed : settings.whitelistSeeds()) {
 				dto.whitelist.add(new WhitelistDto(seed.name(), seed.fallbackTypeId()));
 			}
-			dto.allowedUids = List.copyOf(settings.allowedUids());
 			return dto;
 		}
 
@@ -166,8 +164,7 @@ public final class RepairSettingsStore {
 					parseFullPriceOnly(defaults),
 					parseManualRecipes(defaults),
 					parseChestTypes(defaults),
-					parseWhitelist(defaults),
-					parseUids(defaults)));
+					parseWhitelist(defaults)));
 		}
 
 		private List<RepairSettings.FullPriceOnlyIngredient> parseFullPriceOnly(RepairSettings defaults) {
@@ -262,21 +259,6 @@ public final class RepairSettingsStore {
 				seeds.add(new RepairSettings.WhitelistSeed(dto.name.trim(), fallback));
 			}
 			return seeds;
-		}
-
-		private Set<String> parseUids(RepairSettings defaults) {
-			if (allowedUids == null) {
-				return defaults.allowedUids();
-			}
-			var uids = new LinkedHashSet<String>();
-			for (String uid : allowedUids) {
-				if (uid == null || uid.isBlank()) {
-					System.out.println("[RepairChest] Skipping blank allowedUids entry");
-					continue;
-				}
-				uids.add(uid.trim());
-			}
-			return uids;
 		}
 	}
 

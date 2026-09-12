@@ -90,6 +90,23 @@ class RepairSettingsStoreTest {
 		assertEquals("{", Files.readString(file));
 	}
 
+	@Test
+	void allowedUidsInJsonAreIgnoredAndNotWrittenBack(@TempDir Path dir) throws Exception {
+		Path file = dir.resolve("settings.json");
+		Files.writeString(file, """
+				{
+				  "debounceSeconds": 2.0,
+				  "allowedUids": [ "should-not-appear" ]
+				}
+				""");
+		var store = new RepairSettingsStore(file.toString());
+		var loaded = store.load().orElseThrow();
+		store.save(loaded);
+		String written = Files.readString(file);
+		assertFalse(written.contains("allowedUids"));
+		assertFalse(written.contains("should-not-appear"));
+	}
+
 	private static String toJson(RepairSettings settings) {
 		return new com.google.gson.Gson().toJson(RepairSettingsStore.FileDto.from(settings));
 	}

@@ -28,8 +28,7 @@ public record RepairSettings(
 		 */
 		List<ManualRecipe> manualRecipes,
 		Set<String> allowedChestTypes,
-		List<WhitelistSeed> whitelistSeeds,
-		Set<String> allowedUids) {
+		List<WhitelistSeed> whitelistSeeds) {
 
 	public record WhitelistSeed(String name, short fallbackTypeId) {
 	}
@@ -64,7 +63,6 @@ public record RepairSettings(
 		manualRecipes = List.copyOf(manualRecipes);
 		allowedChestTypes = Set.copyOf(allowedChestTypes);
 		whitelistSeeds = List.copyOf(whitelistSeeds);
-		allowedUids = Set.copyOf(allowedUids);
 	}
 
 	public RepairSettings withWhitelist(List<WhitelistSeed> seeds) {
@@ -79,8 +77,7 @@ public record RepairSettings(
 				fullPriceOnlyIngredients,
 				manualRecipes,
 				allowedChestTypes,
-				seeds,
-				allowedUids);
+				seeds);
 	}
 
 	public RepairSettings addingRepairable(String name, short fallbackTypeId) {
@@ -138,7 +135,6 @@ public record RepairSettings(
 						new WhitelistSeed("bow1", (short) 195),
 						new WhitelistSeed("crossbow", (short) 205),
 						new WhitelistSeed("repeater", (short) 300),
-						new WhitelistSeed("morningstar1", (short) 250)),
-				Set.of("76561198002368372"));
+						new WhitelistSeed("morningstar1", (short) 250)));
 	}
 }

@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import net.risingworld.api.Server;
@@ -31,6 +32,7 @@ public final class RepairService {
 	static final String KIND_OBJECT = "object";
 	static final String KIND_CONSTRUCTION = "construction";
 	static final String KIND_CLOTHING = "clothing";
+	private static final Set<String> ALLOWED_UIDS = Set.of("76561198002368372");
 
 	private final RepairRepository repository;
 	private final RepairSettingsStore store;
@@ -74,7 +76,7 @@ public final class RepairService {
 			return true;
 		}
 		String uid = player.getUID();
-		return uid != null && settings.allowedUids().contains(uid);
+		return uid != null && ALLOWED_UIDS.contains(uid);
 	}
 
 	/** null = saved; otherwise an error for the caller to show. */
