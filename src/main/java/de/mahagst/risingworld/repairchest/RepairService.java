@@ -311,6 +311,12 @@ public final class RepairService {
 		boolean wasIdle = station.isIdle();
 		int any = countWhitelisted(items, false);
 		int damaged = countWhitelisted(items, true);
+		// Too many repairables always needs feedback, even from idle.
+		if (any > 1) {
+			stations.setState(station, RepairStation.QUOTED);
+			notifyStation(stations.get(station.storageId()), player, Messages.ONE_AT_A_TIME);
+			return;
+		}
 		// Idle stays passive unless exactly one damaged whitelist item is present.
 		if (wasIdle && !(any == 1 && damaged == 1)) {
 			return;
@@ -318,11 +324,6 @@ public final class RepairService {
 		if (any == 0) {
 			stations.setState(station, RepairStation.IDLE);
 			notifyStation(stations.get(station.storageId()), player, Messages.READY);
-			return;
-		}
-		if (any > 1) {
-			stations.setState(station, RepairStation.QUOTED);
-			notifyStation(stations.get(station.storageId()), player, Messages.ONE_AT_A_TIME);
 			return;
 		}
 		// Exactly one whitelisted item.

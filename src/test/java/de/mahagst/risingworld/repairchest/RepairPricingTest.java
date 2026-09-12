@@ -12,40 +12,58 @@ import net.risingworld.api.definitions.Items;
 
 class RepairPricingTest {
 	private static final RepairSettings SETTINGS = RepairSettings.defaults();
-	private static final int FULL_PRICE_PERCENT = SETTINGS.fullPriceRemainingPercent();
 
 	@ParameterizedTest
 	@CsvSource({"999, 1", "801, 4", "800, 4", "500, 8", "151, 14", "150, 16", "149, 16", "0, 16", "-1, 16"})
-	void roundsEachMaterialUpAndChargesFullPriceAtFifteenPercent(int durability, int expected) {
-		var recipe = recipe(ingredient(470, "ironplate", 16), ingredient(145, "circuitboard", 1));
-		var needs = RepairPricing.quoteRecipe(recipe, durability, 1000, FULL_PRICE_PERCENT).orElseThrow();
+	void roundsMaterialsAndChargesFullPriceAtFifteenPercent(int durability, int expected) {
+		var recipe = recipe(ingredient(470, "ironplate", 16));
+		var needs = RepairPricing.quoteRecipe(recipe, durability, 1000, "bow1", SETTINGS).orElseThrow();
+		assertEquals(1, needs.size());
 		assertEquals(expected, needs.get(0).amount());
-		assertEquals(1, needs.get(1).amount());
+	}
+
+	@Test
+	void circuitboardOnlyForModernToolsInFullPriceBand() {
+		var recipe = recipe(ingredient(470, "ironplate", 16), ingredient(145, "circuitboard", 1));
+		var light = RepairPricing.quoteRecipe(recipe, 500, 1000, "miningdrill", SETTINGS).orElseThrow();
+		assertEquals(1, light.size());
+		assertEquals("ironplate", light.get(0).label());
+		assertEquals(8, light.get(0).amount());
+
+		var heavy = RepairPricing.quoteRecipe(recipe, 150, 1000, "miningdrill", SETTINGS).orElseThrow();
+		assertEquals(2, heavy.size());
+		assertEquals(16, heavy.get(0).amount());
+		assertEquals("circuitboard", heavy.get(1).label());
+		assertEquals(1, heavy.get(1).amount());
+
+		var bow = RepairPricing.quoteRecipe(recipe, 500, 1000, "bow1", SETTINGS).orElseThrow();
+		assertEquals(2, bow.size());
+		assertEquals("circuitboard", bow.get(1).label());
 	}
 
 	@Test
 	void usesExactDurabilityInsteadOfRoundedPercentage() {
 		var recipe = recipe(ingredient(470, "ironplate", 1000));
-		assertEquals(841, RepairPricing.quoteRecipe(recipe, 159, 1000, FULL_PRICE_PERCENT).orElseThrow().get(0).amount());
-		assertEquals(850, RepairPricing.quoteRecipe(recipe, 3751, 25000, FULL_PRICE_PERCENT).orElseThrow().get(0).amount());
-		assertEquals(1000, RepairPricing.quoteRecipe(recipe, 3750, 25000, FULL_PRICE_PERCENT).orElseThrow().get(0).amount());
+		assertEquals(841, RepairPricing.quoteRecipe(recipe, 159, 1000, "bow1", SETTINGS).orElseThrow().get(0).amount());
+		assertEquals(850, RepairPricing.quoteRecipe(recipe, 3751, 25000, "bow1", SETTINGS).orElseThrow().get(0).amount());
+		assertEquals(1000, RepairPricing.quoteRecipe(recipe, 3750, 25000, "bow1", SETTINGS).orElseThrow().get(0).amount());
 	}
 
 	@Test
 	void fullItemsHaveNoMaterialCost() {
 		var recipe = recipe(ingredient(470, "ironplate", 16));
-		assertTrue(RepairPricing.quoteRecipe(recipe, 1000, 1000, FULL_PRICE_PERCENT).orElseThrow().isEmpty());
-		assertTrue(RepairPricing.quoteRecipe(recipe, 1100, 1000, FULL_PRICE_PERCENT).orElseThrow().isEmpty());
+		assertTrue(RepairPricing.quoteRecipe(recipe, 1000, 1000, "bow1", SETTINGS).orElseThrow().isEmpty());
+		assertTrue(RepairPricing.quoteRecipe(recipe, 1100, 1000, "bow1", SETTINGS).orElseThrow().isEmpty());
 	}
 
 	@Test
 	void normalizesBatchRecipesAndCombinesIngredientsBeforeRounding() {
 		var recipe = recipe(ingredient(470, "ironplate", 3), ingredient(470, "ironplate", 3));
 		recipe.amount = 2;
-		var half = RepairPricing.quoteRecipe(recipe, 500, 1000, FULL_PRICE_PERCENT).orElseThrow();
+		var half = RepairPricing.quoteRecipe(recipe, 500, 1000, "bow1", SETTINGS).orElseThrow();
 		assertEquals(1, half.size());
 		assertEquals(2, half.get(0).amount());
-		assertEquals(3, RepairPricing.quoteRecipe(recipe, 150, 1000, FULL_PRICE_PERCENT).orElseThrow().get(0).amount());
+		assertEquals(3, RepairPricing.quoteRecipe(recipe, 150, 1000, "bow1", SETTINGS).orElseThrow().get(0).amount());
 	}
 
 	@Test
@@ -55,7 +73,7 @@ class RepairPricingTest {
 		tool.itemDef = null;
 		tool.group = Items.Group.Knife;
 		tool.consume = false;
-		var needs = RepairPricing.quoteRecipe(recipe(material, tool), 999, 1000, FULL_PRICE_PERCENT).orElseThrow();
+		var needs = RepairPricing.quoteRecipe(recipe(material, tool), 999, 1000, "bow1", SETTINGS).orElseThrow();
 		assertTrue(needs.get(0).matches(item(470, 9, 1)));
 		assertEquals(2, needs.get(1).amount());
 		assertEquals(Items.Group.Knife, needs.get(1).group());
@@ -64,25 +82,25 @@ class RepairPricingTest {
 
 	@Test
 	void unusableRecipesCannotBecomeFreeRepairs() {
-		assertTrue(RepairPricing.quoteRecipe(null, 500, 1000, FULL_PRICE_PERCENT).isEmpty());
-		assertTrue(RepairPricing.quoteRecipe(recipe(), 500, 1000, FULL_PRICE_PERCENT).isEmpty());
+		assertTrue(RepairPricing.quoteRecipe(null, 500, 1000, "bow1", SETTINGS).isEmpty());
+		assertTrue(RepairPricing.quoteRecipe(recipe(), 500, 1000, "bow1", SETTINGS).isEmpty());
 		var recipe = recipe(ingredient(470, "ironplate", 16));
 		recipe.amount = 0;
-		assertTrue(RepairPricing.quoteRecipe(recipe, 500, 1000, FULL_PRICE_PERCENT).isEmpty());
+		assertTrue(RepairPricing.quoteRecipe(recipe, 500, 1000, "bow1", SETTINGS).isEmpty());
 		recipe.amount = 1;
-		assertTrue(RepairPricing.quoteRecipe(recipe, 500, 0, FULL_PRICE_PERCENT).isEmpty());
+		assertTrue(RepairPricing.quoteRecipe(recipe, 500, 0, "bow1", SETTINGS).isEmpty());
 		recipe.ingredients[0].itemDef = null;
 		recipe.ingredients[0].group = Items.Group.None;
-		assertTrue(RepairPricing.quoteRecipe(recipe, 500, 1000, FULL_PRICE_PERCENT).isEmpty());
+		assertTrue(RepairPricing.quoteRecipe(recipe, 500, 1000, "bow1", SETTINGS).isEmpty());
 	}
 
 	@Test
 	void handlesLargeDurabilityWithoutOverflow() {
 		var recipe = recipe(ingredient(470, "ironplate", Integer.MAX_VALUE));
 		assertEquals(Integer.MAX_VALUE,
-				RepairPricing.quoteRecipe(recipe, 0, Integer.MAX_VALUE, FULL_PRICE_PERCENT).orElseThrow().get(0).amount());
+				RepairPricing.quoteRecipe(recipe, 0, Integer.MAX_VALUE, "bow1", SETTINGS).orElseThrow().get(0).amount());
 		assertEquals(1,
-				RepairPricing.quoteRecipe(recipe, Integer.MAX_VALUE - 1, Integer.MAX_VALUE, FULL_PRICE_PERCENT)
+				RepairPricing.quoteRecipe(recipe, Integer.MAX_VALUE - 1, Integer.MAX_VALUE, "bow1", SETTINGS)
 						.orElseThrow().get(0).amount());
 	}
 
@@ -138,6 +156,40 @@ class RepairPricingTest {
 				.isEmpty());
 		assertTrue(RepairPricing.recipeFor(target, SETTINGS, (name, variant) -> recipe(), name -> definition(451, "goldingot"))
 				.isEmpty());
+	}
+
+	@Test
+	void usesManualRecipeWhenApiHasNone() {
+		var targetDef = definition(250, "morningstar1");
+		targetDef.durability = 1000;
+		var target = item(250, 0, 1);
+		when(target.getDefinition()).thenReturn(targetDef);
+		when(target.getDurability()).thenReturn(500);
+		var needs = RepairPricing.recipeFor(target, SETTINGS, (name, variant) -> null, name -> switch (name) {
+			case "goldingot" -> definition(451, "goldingot");
+			case "ironplate" -> definition(470, "ironplate");
+			case "ironingot" -> definition(452, "ironingot");
+			default -> null;
+		}).orElseThrow();
+		assertEquals(3, needs.size());
+		assertEquals(new RepairPricing.Need((short) 470, 6, "ironplate", true, null), needs.get(0));
+		assertEquals(new RepairPricing.Need((short) 452, 3, "ironingot", true, null), needs.get(1));
+		assertEquals(new RepairPricing.Need((short) 451, 5, "goldingot", true, null), needs.get(2));
+	}
+
+	@Test
+	void apiRecipeWinsOverManualRecipe() {
+		var targetDef = definition(250, "morningstar1");
+		targetDef.durability = 1000;
+		var target = item(250, 0, 1);
+		when(target.getDefinition()).thenReturn(targetDef);
+		when(target.getDurability()).thenReturn(500);
+		var api = recipe(ingredient(470, "ironplate", 4));
+		var needs = RepairPricing.recipeFor(target, SETTINGS, (name, variant) -> api, name -> definition(451, "goldingot"))
+				.orElseThrow();
+		assertEquals(2, needs.size());
+		assertEquals(2, needs.get(0).amount());
+		assertEquals("ironplate", needs.get(0).label());
 	}
 
 	@Test
