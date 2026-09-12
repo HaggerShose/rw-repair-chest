@@ -43,6 +43,7 @@ Look at the chest or sign first, then use chat or the `^` console **with** a lea
 | `/make-repair-sign <NAME>`  | Link the focused sign to the existing chest `NAME`. One sign per station.     |
 | `/remove-repair-chest`      | Unregister (chest in focus). Clears the linked sign text. World objects stay. |
 | `/repair-info`              | Show name, type, state, debounce, sign yes/no, whitelist.                     |
+| `/reload-repair-chest`      | Reload `settings.json` without restarting. Stations stay.                     |
 
 ### Rules
 
@@ -59,13 +60,11 @@ Put the jar here and restart the server:
 
 ```text
 Plugins/RepairChest/RepairChest.jar
+Plugins/RepairChest/settings.json    -- operator knobs (created on first start)
+Plugins/RepairChest/repair.db        -- registered stations
 ```
 
-State is stored automatically in:
-
-```text
-Plugins/RepairChest/repair.db
-```
+The settings file must be named `settings.json` (not `settings.json.txt`). Edit it, then `/reload-repair-chest`. Invalid JSON keeps the previous in-memory settings. Stations are not touched by reload.
 
 On startup, missing or replaced chests are cleaned out of the database so dead entries do not stick around.
 
@@ -80,13 +79,14 @@ RepairService.java       -- put/take/scan/repair + timers
 StationRegistry.java     -- RAM index, identity, lock/sign
 RepairPricing.java       -- recipe quote, gold fee, allocation
 RepairRepository.java    -- SQLite
-RepairSettings.java      -- all knobs (defaults())
+RepairSettings.java      -- record + built-in defaults()
+RepairSettingsStore.java -- settings.json load/save
 Messages.java
 RepairStation.java
 WhitelistEntry.java
 ```
 
-Pricing uses live API recipes plus a flat gold fee. Startup replaces the whitelist from `RepairSettings` seeds. OZ Tools is compile-only; runtime stays standalone.
+Pricing uses live API recipes plus a flat gold fee. Startup/reload replaces the whitelist from `settings.json`. OZ Tools is compile-only; runtime stays standalone.
 
 ## Verify
 

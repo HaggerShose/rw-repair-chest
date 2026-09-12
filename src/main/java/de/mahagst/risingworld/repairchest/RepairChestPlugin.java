@@ -11,7 +11,8 @@ public class RepairChestPlugin extends Plugin {
 
 	@Override
 	public void onEnable() {
-		RepairSettings settings = RepairSettings.defaults();
+		RepairSettingsStore store = new RepairSettingsStore(getPath() + "/settings.json");
+		RepairSettings settings = store.loadOrCreate();
 		database = getSQLiteConnection(getPath() + "/repair.db");
 		if (database == null) {
 			System.out.println("[RepairChest] Failed to open SQLite database");
@@ -21,7 +22,7 @@ public class RepairChestPlugin extends Plugin {
 		repository.createSchema();
 		repairService = new RepairService(repository, settings, this::enqueue);
 		repairService.start();
-		commands = new RepairCommands(repairService, settings);
+		commands = new RepairCommands(repairService, store);
 		registerEventListener(commands);
 		System.out.println("[RepairChest] enabled");
 	}

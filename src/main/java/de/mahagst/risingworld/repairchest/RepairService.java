@@ -32,7 +32,7 @@ public final class RepairService {
 	static final String KIND_CLOTHING = "clothing";
 
 	private final RepairRepository repository;
-	private final RepairSettings settings;
+	private volatile RepairSettings settings;
 	private final Consumer<Runnable> enqueue;
 	private final StationRegistry stations;
 	private final Map<Long, Timer> debounceTimers = new HashMap<>();
@@ -52,6 +52,17 @@ public final class RepairService {
 		syncWhitelistFromSettings();
 		stations.loadAll();
 		stations.sweepAndResetIdle();
+	}
+
+	public RepairSettings settings() {
+		return settings;
+	}
+
+	/** Swap operator knobs and resync whitelist. Stations and pending timers stay. */
+	public void applySettings(RepairSettings next) {
+		this.settings = next;
+		stations.replaceSettings(next);
+		syncWhitelistFromSettings();
 	}
 
 	private void syncWhitelistFromSettings() {

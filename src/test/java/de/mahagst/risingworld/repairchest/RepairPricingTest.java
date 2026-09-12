@@ -168,12 +168,12 @@ class RepairPricingTest {
 		var needs = RepairPricing.recipeFor(target, SETTINGS, (name, variant) -> null, name -> switch (name) {
 			case "goldingot" -> definition(451, "goldingot");
 			case "ironplate" -> definition(470, "ironplate");
-			case "ironingot" -> definition(452, "ironingot");
+			case "tungstenplate" -> definition(480, "tungstenplate");
 			default -> null;
 		}).orElseThrow();
 		assertEquals(3, needs.size());
 		assertEquals(new RepairPricing.Need((short) 470, 6, "ironplate", true, null), needs.get(0));
-		assertEquals(new RepairPricing.Need((short) 452, 3, "ironingot", true, null), needs.get(1));
+		assertEquals(new RepairPricing.Need((short) 480, 3, "tungstenplate", true, null), needs.get(1));
 		assertEquals(new RepairPricing.Need((short) 451, 5, "goldingot", true, null), needs.get(2));
 	}
 

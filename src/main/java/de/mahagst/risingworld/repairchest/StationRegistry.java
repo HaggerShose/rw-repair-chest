@@ -17,12 +17,16 @@ import net.risingworld.api.utils.Vector3f;
  */
 final class StationRegistry {
 	private final RepairRepository repository;
-	private final RepairSettings settings;
+	private volatile RepairSettings settings;
 	private final Map<Long, RepairStation> stationsByStorageId = new HashMap<>();
 	private final Map<Long, Long> signIdToStorageId = new HashMap<>();
 
 	StationRegistry(RepairRepository repository, RepairSettings settings) {
 		this.repository = repository;
+		this.settings = settings;
+	}
+
+	void replaceSettings(RepairSettings settings) {
 		this.settings = settings;
 	}
 

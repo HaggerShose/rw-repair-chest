@@ -4,8 +4,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Operator knobs. Edit {@link #defaults()} to change timers, chests, whitelist seeds, fees, UIDs.
- * Startup replaces the SQLite whitelist from {@link #whitelistSeeds()}.
+ * Operator knobs. {@code settings.json} is the live source; {@link #defaults()} seeds a missing file
+ * and unit tests. Startup/reload replaces the SQLite whitelist from {@link #whitelistSeeds()}.
  */
 public record RepairSettings(
 		float debounceSeconds,

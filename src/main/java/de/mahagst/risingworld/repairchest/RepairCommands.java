@@ -20,11 +20,11 @@ import net.risingworld.api.objects.world.ObjectElement;
 /** Operator commands and station storage/sign events. */
 public final class RepairCommands implements Listener {
 	private final RepairService repairService;
-	private final RepairSettings settings;
+	private final RepairSettingsStore store;
 
-	public RepairCommands(RepairService repairService, RepairSettings settings) {
+	public RepairCommands(RepairService repairService, RepairSettingsStore store) {
 		this.repairService = repairService;
-		this.settings = settings;
+		this.store = store;
 	}
 
 	@EventMethod
@@ -47,6 +47,7 @@ public final class RepairCommands implements Listener {
 			case "/make-repair-sign" -> makeSign(player, args);
 			case "/remove-repair-chest" -> withFocusedChest(player, repairService::remove);
 			case "/repair-info" -> withFocusedChest(player, repairService::info);
+			case "/reload-repair-chest" -> reload(player);
 			default -> {
 			}
 		}
@@ -128,7 +129,8 @@ public final class RepairCommands implements Listener {
 		return cmd.equals("/make-repair-chest")
 				|| cmd.equals("/make-repair-sign")
 				|| cmd.equals("/remove-repair-chest")
-				|| cmd.equals("/repair-info");
+				|| cmd.equals("/repair-info")
+				|| cmd.equals("/reload-repair-chest");
 	}
 
 	private boolean isAllowed(Player player) {
@@ -136,7 +138,7 @@ public final class RepairCommands implements Listener {
 			return true;
 		}
 		String uid = player.getUID();
-		return uid != null && settings.allowedUids().contains(uid);
+		return uid != null && repairService.settings().allowedUids().contains(uid);
 	}
 
 	private void makeChest(Player player, String[] args) {
@@ -158,7 +160,7 @@ public final class RepairCommands implements Listener {
 	}
 
 	private void withFocusedChest(Player player, FocusedChestHandler handler) {
-		player.getObjectElementInLineOfSight(settings.interactDistance(), object -> {
+		player.getObjectElementInLineOfSight(repairService.settings().interactDistance(), object -> {
 			if (object == null) {
 				player.sendTextMessage(Messages.NO_CHEST_IN_FOCUS);
 				return;
@@ -177,7 +179,7 @@ public final class RepairCommands implements Listener {
 	}
 
 	private void withFocusedSign(Player player, FocusedSignHandler handler) {
-		player.getObjectElementInLineOfSight(settings.interactDistance(), object -> {
+		player.getObjectElementInLineOfSight(repairService.settings().interactDistance(), object -> {
 			if (object == null) {
 				player.sendTextMessage(Messages.NO_SIGN_IN_FOCUS);
 				return;
@@ -194,6 +196,16 @@ public final class RepairCommands implements Listener {
 			}
 			handler.handle(player, object, sign);
 		});
+	}
+
+	private void reload(Player player) {
+		var loaded = store.load();
+		if (loaded.isEmpty()) {
+			player.sendTextMessage(Messages.SETTINGS_RELOAD_FAILED);
+			return;
+		}
+		repairService.applySettings(loaded.get());
+		player.sendTextMessage(Messages.settingsReloaded(repairService.settings().whitelistSeeds().size()));
 	}
 
 	private static String parseName(String[] args) {
