@@ -1,6 +1,6 @@
 name: RepairChest
 main: de.mahagst.risingworld.repairchest.RepairChestPlugin
-version: 1.2.4
+version: 1.2.5
 author: mahagst
 description: Repair chests to restore durability of items
 website: https://api.github.com/repos/HaggerShose/rw-repair-chest/releases/latest
