@@ -16,7 +16,7 @@ public final class Messages {
 
 	public static final String USAGE_MAKE_CHEST = "Usage: /make-repair-chest <NAME>";
 	public static final String USAGE_MAKE_SIGN = "Usage: /make-repair-sign <NAME>";
-	public static final String NOT_STORAGE_CHEST = "That is not a storage chest.";
+	public static final String NOT_STORAGE_CHEST = "That is not a storage chest!";
 	public static final String CHEST_ALREADY_REGISTERED = "Chest is already registered.";
 	public static final String NAME_IN_USE = "Name already in use.";
 	public static final String SAVE_FAILED = "Could not save repair chest.";
