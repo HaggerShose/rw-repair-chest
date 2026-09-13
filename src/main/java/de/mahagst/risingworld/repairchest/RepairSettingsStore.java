@@ -30,20 +30,45 @@ public final class RepairSettingsStore {
 		this.file = Path.of(path);
 	}
 
-	/** Create from {@link RepairSettings#defaults()} when missing; corrupt files keep defaults in RAM. */
-	public RepairSettings loadOrCreate() {
+	/**
+	 * Missing file -> write defaults. Unreadable file -> rewrite defaults with
+	 * {@code dbWhitelist} (or built-in whitelist if that list is empty).
+	 */
+	public RepairSettings loadOrCreate(List<String> dbWhitelist) {
 		if (!Files.exists(file)) {
+			RepairSettings defaults = RepairSettings.defaults();
 			try {
-				save(RepairSettings.defaults());
+				save(defaults);
 			} catch (IOException e) {
 				System.out.println("[RepairChest] Could not write settings.json: " + e.getMessage());
-				return RepairSettings.defaults();
 			}
+			return defaults;
 		}
-		return load().orElseGet(() -> {
-			System.out.println("[RepairChest] Invalid settings.json, using built-in defaults");
-			return RepairSettings.defaults();
-		});
+		Optional<RepairSettings> loaded = load();
+		if (loaded.isPresent()) {
+			return loaded.get();
+		}
+		return rewriteFromDatabase(dbWhitelist);
+	}
+
+	/** Defaults plus DB labels when present; always writes {@code settings.json}. */
+	public RepairSettings rewriteFromDatabase(List<String> dbWhitelist) {
+		RepairSettings rebuilt = rebuiltFrom(dbWhitelist);
+		try {
+			save(rebuilt);
+			System.out.println("[RepairChest] Rewrote settings.json (whitelist from database)");
+		} catch (IOException e) {
+			System.out.println("[RepairChest] Could not rewrite settings.json: " + e.getMessage());
+		}
+		return rebuilt;
+	}
+
+	static RepairSettings rebuiltFrom(List<String> dbWhitelist) {
+		RepairSettings defaults = RepairSettings.defaults();
+		if (dbWhitelist == null || dbWhitelist.isEmpty()) {
+			return defaults;
+		}
+		return defaults.withWhitelist(List.copyOf(dbWhitelist));
 	}
 
 	public Optional<RepairSettings> load() {
@@ -97,7 +122,7 @@ public final class RepairSettingsStore {
 		List<FullPriceOnlyDto> fullPriceOnlyIngredients;
 		List<ManualRecipeDto> manualRecipes;
 		List<String> allowedChestTypes;
-		List<WhitelistDto> whitelist;
+		List<String> whitelist;
 
 		static FileDto from(RepairSettings settings) {
 			var dto = new FileDto();
@@ -123,10 +148,7 @@ public final class RepairSettingsStore {
 				dto.manualRecipes.add(new ManualRecipeDto(recipe.targetName(), recipe.craftAmount(), ingredients));
 			}
 			dto.allowedChestTypes = List.copyOf(settings.allowedChestTypes());
-			dto.whitelist = new ArrayList<>();
-			for (var seed : settings.whitelistSeeds()) {
-				dto.whitelist.add(new WhitelistDto(seed.name(), seed.fallbackTypeId()));
-			}
+			dto.whitelist = List.copyOf(settings.whitelist());
 			return dto;
 		}
 
@@ -245,20 +267,19 @@ public final class RepairSettingsStore {
 			return types;
 		}
 
-		private List<RepairSettings.WhitelistSeed> parseWhitelist(RepairSettings defaults) {
+		private List<String> parseWhitelist(RepairSettings defaults) {
 			if (whitelist == null) {
-				return defaults.whitelistSeeds();
+				return defaults.whitelist();
 			}
-			var seeds = new ArrayList<RepairSettings.WhitelistSeed>();
-			for (WhitelistDto dto : whitelist) {
-				if (dto == null || dto.name == null || dto.name.isBlank()) {
-					System.out.println("[RepairChest] Skipping whitelist entry without name");
+			var names = new ArrayList<String>();
+			for (String name : whitelist) {
+				if (name == null || name.isBlank()) {
+					System.out.println("[RepairChest] Skipping blank whitelist entry");
 					continue;
 				}
-				short fallback = dto.fallbackTypeId != null ? dto.fallbackTypeId : 0;
-				seeds.add(new RepairSettings.WhitelistSeed(dto.name.trim(), fallback));
+				names.add(name.trim());
 			}
-			return seeds;
+			return names;
 		}
 	}
 
@@ -305,16 +326,4 @@ public final class RepairSettingsStore {
 		}
 	}
 
-	static final class WhitelistDto {
-		String name;
-		Short fallbackTypeId;
-
-		WhitelistDto() {
-		}
-
-		WhitelistDto(String name, Short fallbackTypeId) {
-			this.name = name;
-			this.fallbackTypeId = fallbackTypeId;
-		}
-	}
 }

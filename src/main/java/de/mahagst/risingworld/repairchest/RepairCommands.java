@@ -192,12 +192,12 @@ public final class RepairCommands implements Listener {
 
 	private void reload(Player player) {
 		var loaded = store.load();
-		if (loaded.isEmpty()) {
-			player.sendTextMessage(Messages.SETTINGS_RELOAD_FAILED);
-			return;
+		if (loaded.isPresent()) {
+			repairService.applySettings(loaded.get());
+		} else {
+			repairService.rebuildSettingsFromDatabase();
 		}
-		repairService.applySettings(loaded.get());
-		player.sendTextMessage(Messages.settingsReloaded(repairService.settings().whitelistSeeds().size()));
+		player.sendTextMessage(Messages.settingsReloaded(repairService.settings().whitelist().size()));
 	}
 
 	private static String parseName(String[] args) {

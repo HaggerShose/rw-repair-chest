@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -20,6 +21,17 @@ class RepairSettingsStoreTest {
 	void corruptJsonIsRejected() {
 		assertTrue(RepairSettingsStore.parse("{").isEmpty());
 		assertTrue(RepairSettingsStore.parse("not json").isEmpty());
+	}
+
+	@Test
+	void objectWhitelistIsRejected() {
+		assertTrue(RepairSettingsStore.parse("""
+				{
+				  "whitelist": [
+				    { "name": "chainsaw", "fallbackTypeId": 132 }
+				  ]
+				}
+				""").isEmpty());
 	}
 
 	@Test
@@ -50,14 +62,14 @@ class RepairSettingsStoreTest {
 	}
 
 	@Test
-	void missingFieldsKeepDefaultsAndSkipBrokenListRows() {
+	void missingFieldsKeepDefaultsAndSkipBlankWhitelistRows() {
 		var parsed = RepairSettingsStore.parse("""
 				{
 				  "debounceSeconds": 3.5,
 				  "whitelist": [
-				    { "name": "chainsaw", "fallbackTypeId": 132 },
-				    { "fallbackTypeId": 1 },
-				    { "name": "  " }
+				    "chainsaw",
+				    "  ",
+				    ""
 				  ]
 				}
 				""").orElseThrow();
@@ -66,19 +78,39 @@ class RepairSettingsStoreTest {
 		assertEquals(defaults.goldFee(), parsed.goldFee());
 		assertEquals(defaults.goldItemName(), parsed.goldItemName());
 		assertEquals(defaults.allowedChestTypes(), parsed.allowedChestTypes());
-		assertEquals(1, parsed.whitelistSeeds().size());
-		assertEquals("chainsaw", parsed.whitelistSeeds().get(0).name());
-		assertEquals((short) 132, parsed.whitelistSeeds().get(0).fallbackTypeId());
+		assertEquals(List.of("chainsaw"), parsed.whitelist());
 	}
 
 	@Test
 	void createsDefaultsFileThenLoadsIt(@TempDir Path dir) throws Exception {
 		Path file = dir.resolve("settings.json");
 		var store = new RepairSettingsStore(file.toString());
-		assertEquals(RepairSettings.defaults(), store.loadOrCreate());
+		assertEquals(RepairSettings.defaults(), store.loadOrCreate(List.of()));
 		assertTrue(Files.isRegularFile(file));
 		assertFalse(Files.exists(file.resolveSibling("settings.json.tmp")));
+		String written = Files.readString(file);
+		assertFalse(written.contains("fallbackTypeId"));
+		assertTrue(written.contains("\"miningdrill\""));
+		assertFalse(written.contains("\"name\": \"miningdrill\""));
 		assertEquals(RepairSettings.defaults(), store.load().orElseThrow());
+	}
+
+	@Test
+	void invalidFileIsRewrittenFromDatabaseWhitelist(@TempDir Path dir) throws Exception {
+		Path file = dir.resolve("settings.json");
+		Files.writeString(file, """
+				{
+				  "whitelist": [ { "name": "chainsaw" } ]
+				}
+				""");
+		var store = new RepairSettingsStore(file.toString());
+		var rebuilt = store.loadOrCreate(List.of("chainsaw", "bow1"));
+		assertEquals(List.of("chainsaw", "bow1"), rebuilt.whitelist());
+		assertEquals(RepairSettings.defaults().goldFee(), rebuilt.goldFee());
+		String written = Files.readString(file);
+		assertTrue(written.contains("\"chainsaw\""));
+		assertTrue(written.contains("\"bow1\""));
+		assertFalse(written.contains("\"name\""));
 	}
 
 	@Test

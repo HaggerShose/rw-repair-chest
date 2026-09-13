@@ -11,11 +11,11 @@ import org.junit.jupiter.api.io.TempDir;
 
 class RepairSettingsTest {
 	@Test
-	void withWhitelistReplacesSeedsAndKeepsOtherKnobs() {
+	void withWhitelistReplacesNamesAndKeepsOtherKnobs() {
 		var original = RepairSettings.defaults();
-		var seeds = List.of(new RepairSettings.WhitelistSeed("pickaxe", (short) 9));
-		var updated = original.withWhitelist(seeds);
-		assertEquals(seeds, updated.whitelistSeeds());
+		var names = List.of("pickaxe");
+		var updated = original.withWhitelist(names);
+		assertEquals(names, updated.whitelist());
 		assertEquals(original.goldFee(), updated.goldFee());
 		assertEquals(original.goldItemName(), updated.goldItemName());
 		assertEquals(original.allowedChestTypes(), updated.allowedChestTypes());
@@ -26,21 +26,20 @@ class RepairSettingsTest {
 	@Test
 	void addingRepairableAppendsUntilNameExists() {
 		var original = RepairSettings.defaults();
-		var added = original.addingRepairable("pickaxe", (short) 9);
-		assertEquals(original.whitelistSeeds().size() + 1, added.whitelistSeeds().size());
-		assertEquals(new RepairSettings.WhitelistSeed("pickaxe", (short) 9),
-				added.whitelistSeeds().get(added.whitelistSeeds().size() - 1));
-		assertSame(added, added.addingRepairable("pickaxe", (short) 99));
-		assertSame(original, original.addingRepairable("  ", (short) 1));
-		assertSame(original, original.addingRepairable(null, (short) 1));
+		var added = original.addingRepairable("pickaxe");
+		assertEquals(original.whitelist().size() + 1, added.whitelist().size());
+		assertEquals("pickaxe", added.whitelist().get(added.whitelist().size() - 1));
+		assertSame(added, added.addingRepairable("pickaxe"));
+		assertSame(original, original.addingRepairable("  "));
+		assertSame(original, original.addingRepairable(null));
 	}
 
 	@Test
 	void removingRepairableDropsByName() {
 		var original = RepairSettings.defaults();
 		var without = original.removingRepairable("chainsaw");
-		assertEquals(original.whitelistSeeds().size() - 1, without.whitelistSeeds().size());
-		assertTrue(without.whitelistSeeds().stream().noneMatch(seed -> seed.name().equals("chainsaw")));
+		assertEquals(original.whitelist().size() - 1, without.whitelist().size());
+		assertTrue(without.whitelist().stream().noneMatch(name -> name.equals("chainsaw")));
 		assertSame(without, without.removingRepairable("chainsaw"));
 		assertSame(original, original.removingRepairable("  "));
 		assertSame(original, original.removingRepairable(null));
@@ -51,10 +50,10 @@ class RepairSettingsTest {
 		Path file = dir.resolve("settings.json");
 		var store = new RepairSettingsStore(file.toString());
 		var updated = RepairSettings.defaults()
-				.addingRepairable("pickaxe", (short) 9)
+				.addingRepairable("pickaxe")
 				.removingRepairable("repeater");
 		store.save(updated);
 		assertTrue(Files.isRegularFile(file));
-		assertEquals(updated.whitelistSeeds(), store.load().orElseThrow().whitelistSeeds());
+		assertEquals(updated.whitelist(), store.load().orElseThrow().whitelist());
 	}
 }

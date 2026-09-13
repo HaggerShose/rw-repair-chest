@@ -61,7 +61,7 @@ public final class RepairRepository {
 	}
 
 	/**
-	 * Replace the repairable-item whitelist. Caller passes the resolved seed list from
+	 * Replace the repairable-item whitelist. Caller passes resolved entries from
 	 * {@code RepairSettings}; NULL variant = any.
 	 */
 	public void replaceWhitelist(List<WhitelistEntry> entries) {
@@ -124,6 +124,16 @@ public final class RepairRepository {
 			e.printStackTrace();
 		}
 		return entries;
+	}
+
+	public List<String> whitelistLabels() {
+		var names = new ArrayList<String>();
+		for (WhitelistEntry entry : findWhitelist()) {
+			if (entry.label() != null && !entry.label().isBlank()) {
+				names.add(entry.label().trim());
+			}
+		}
+		return names;
 	}
 
 	public boolean insert(RepairStation station) {

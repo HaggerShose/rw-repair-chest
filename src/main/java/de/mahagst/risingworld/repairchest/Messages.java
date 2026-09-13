@@ -31,7 +31,6 @@ public final class Messages {
 	public static final String TRANSIENT_UNSUPPORTED = "Transient storage is not supported.";
 	public static final String NO_SIGN_IN_FOCUS = "No sign in focus.";
 	public static final String NOT_A_SIGN = "That is not a sign.";
-	public static final String SETTINGS_RELOAD_FAILED = "Could not reload settings.json (kept previous settings).";
 
 	private Messages() {
 	}

@@ -3,7 +3,6 @@ package de.mahagst.risingworld.repairchest.oz;
 import java.util.List;
 
 import de.mahagst.risingworld.repairchest.RepairService;
-import de.mahagst.risingworld.repairchest.RepairSettings;
 import de.omegazirkel.risingworld.tools.ui.BasePlayerPluginSettingsPanel;
 import de.omegazirkel.risingworld.tools.ui.ButtonFactory;
 import de.omegazirkel.risingworld.tools.ui.OZUIElement;
@@ -98,28 +97,28 @@ public final class OzWhitelistUi extends PlayerPluginSettings {
 		}
 
 		private TableScrollView buildTable() {
-			var seeds = ui.service.settings().whitelistSeeds();
+			var names = ui.service.settings().whitelist();
 			TableScrollView table = new TableScrollView(COLUMNS, COLUMN_WIDTHS);
 			table.style.width.set(100f, Unit.Percent);
 			hideTableHorizontalScroll(table);
-			float rows = seeds.size() + 1f;
+			float rows = names.size() + 1f;
 			table.setScrollBodyHeight(Math.min(360f, Math.max(64f, rows * 34f)));
-			for (RepairSettings.WhitelistSeed seed : seeds) {
-				table.addRow(itemRow(seed));
+			for (String name : names) {
+				table.addRow(itemRow(name));
 			}
 			table.addRow(addRow());
 			return table;
 		}
 
-		private TableRow itemRow(RepairSettings.WhitelistSeed seed) {
-			Items.ItemDefinition def = definitionOf(seed);
-			String name = seed.name();
+		private TableRow itemRow(String name) {
+			Items.ItemDefinition def = Definitions.getItemDefinition(name);
+			String idText = def != null ? name + " (" + def.id + ")" : name;
 			OZUIElement remove = ButtonFactory.danger("Remove", event -> removeItem(name));
 			remove.setSize(78f, 24f, false);
 			return new TableRow(List.of(
 					new TableCell(itemIcon(def), COLUMN_WIDTHS.get(0)),
-					new TableCell(cellText(displayName(def, seed.name())), COLUMN_WIDTHS.get(1)),
-					new TableCell(cellText(seed.name() + " (" + seed.fallbackTypeId() + ")"), COLUMN_WIDTHS.get(2)),
+					new TableCell(cellText(displayName(def, name)), COLUMN_WIDTHS.get(1)),
+					new TableCell(cellText(idText), COLUMN_WIDTHS.get(2)),
 					new TableCell(remove, COLUMN_WIDTHS.get(3))));
 		}
 
@@ -168,7 +167,7 @@ public final class OzWhitelistUi extends PlayerPluginSettings {
 				if (def == null || def.durability <= 0) {
 					ui.lastStatus = "Item has no durability";
 				} else {
-					String err = ui.service.addRepairable(item.getName(), def.id);
+					String err = ui.service.addRepairable(item.getName());
 					ui.lastStatus = err == null ? "Added " + displayName(def, item.getName()) : err;
 				}
 			}
@@ -219,14 +218,6 @@ public final class OzWhitelistUi extends PlayerPluginSettings {
 				return def.name != null ? def.name : fallback;
 			}
 			return localized;
-		}
-
-		private static Items.ItemDefinition definitionOf(RepairSettings.WhitelistSeed seed) {
-			Items.ItemDefinition def = Definitions.getItemDefinition(seed.name());
-			if (def != null) {
-				return def;
-			}
-			return Definitions.getItemDefinition(seed.fallbackTypeId());
 		}
 
 		private static UIElement itemIcon(Items.ItemDefinition def) {

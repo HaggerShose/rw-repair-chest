@@ -71,6 +71,11 @@ public final class RepairService {
 		syncWhitelistFromSettings();
 	}
 
+	/** Unreadable settings.json: rewrite defaults + DB whitelist labels, then apply. */
+	public void rebuildSettingsFromDatabase() {
+		applySettings(store.rewriteFromDatabase(repository.whitelistLabels()));
+	}
+
 	public boolean isAllowed(Player player) {
 		if (player.isAdmin()) {
 			return true;
@@ -80,11 +85,11 @@ public final class RepairService {
 	}
 
 	/** null = saved; otherwise an error for the caller to show. */
-	public String addRepairable(String name, short fallbackTypeId) {
+	public String addRepairable(String name) {
 		if (name == null || name.isBlank()) {
 			return "Missing item name.";
 		}
-		RepairSettings next = settings.addingRepairable(name, fallbackTypeId);
+		RepairSettings next = settings.addingRepairable(name);
 		if (next == settings) {
 			return "Already listed: " + name.trim();
 		}
@@ -116,9 +121,13 @@ public final class RepairService {
 
 	private void syncWhitelistFromSettings() {
 		var entries = new ArrayList<WhitelistEntry>();
-		for (var seed : settings.whitelistSeeds()) {
-			short typeId = resolveItemId(seed.name(), seed.fallbackTypeId());
-			entries.add(new WhitelistEntry(KIND_ITEM, typeId, null, seed.name()));
+		for (String name : settings.whitelist()) {
+			Items.ItemDefinition def = Definitions.getItemDefinition(name);
+			if (def == null) {
+				System.out.println("[RepairChest] Skipping unknown whitelist item: " + name);
+				continue;
+			}
+			entries.add(new WhitelistEntry(KIND_ITEM, def.id, null, name));
 		}
 		repository.replaceWhitelist(entries);
 		whitelist = repository.findWhitelist();
@@ -614,14 +623,6 @@ public final class RepairService {
 		cancelTimers(storageId);
 		lastActorUid.remove(storageId);
 		stations.drop(storageId);
-	}
-
-	private static short resolveItemId(String name, short fallback) {
-		Items.ItemDefinition def = Definitions.getItemDefinition(name);
-		if (def != null) {
-			return def.id;
-		}
-		return fallback;
 	}
 
 	private void rememberActor(long storageId, Player player) {

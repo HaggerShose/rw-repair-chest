@@ -6,7 +6,7 @@ import java.util.Set;
 
 /**
  * Operator knobs. {@code settings.json} is the live source; {@link #defaults()} seeds a missing file
- * and unit tests. Startup/reload replaces the SQLite whitelist from {@link #whitelistSeeds()}.
+ * and unit tests. Startup/reload replaces the SQLite whitelist from {@link #whitelist()}.
  */
 public record RepairSettings(
 		float debounceSeconds,
@@ -28,10 +28,7 @@ public record RepairSettings(
 		 */
 		List<ManualRecipe> manualRecipes,
 		Set<String> allowedChestTypes,
-		List<WhitelistSeed> whitelistSeeds) {
-
-	public record WhitelistSeed(String name, short fallbackTypeId) {
-	}
+		List<String> whitelist) {
 
 	/** e.g. circuitboard only for miningdrill/chainsaw/trimmer when nearly broken. */
 	public record FullPriceOnlyIngredient(String ingredientName, Set<String> forTargets) {
@@ -62,10 +59,10 @@ public record RepairSettings(
 		fullPriceOnlyIngredients = List.copyOf(fullPriceOnlyIngredients);
 		manualRecipes = List.copyOf(manualRecipes);
 		allowedChestTypes = Set.copyOf(allowedChestTypes);
-		whitelistSeeds = List.copyOf(whitelistSeeds);
+		whitelist = List.copyOf(whitelist);
 	}
 
-	public RepairSettings withWhitelist(List<WhitelistSeed> seeds) {
+	public RepairSettings withWhitelist(List<String> names) {
 		return new RepairSettings(
 				debounceSeconds,
 				postTakeScanSeconds,
@@ -77,21 +74,19 @@ public record RepairSettings(
 				fullPriceOnlyIngredients,
 				manualRecipes,
 				allowedChestTypes,
-				seeds);
+				names);
 	}
 
-	public RepairSettings addingRepairable(String name, short fallbackTypeId) {
+	public RepairSettings addingRepairable(String name) {
 		if (name == null || name.isBlank()) {
 			return this;
 		}
 		String trimmed = name.trim();
-		for (WhitelistSeed seed : whitelistSeeds) {
-			if (seed.name().equals(trimmed)) {
-				return this;
-			}
+		if (whitelist.contains(trimmed)) {
+			return this;
 		}
-		var next = new ArrayList<>(whitelistSeeds);
-		next.add(new WhitelistSeed(trimmed, fallbackTypeId));
+		var next = new ArrayList<>(whitelist);
+		next.add(trimmed);
 		return withWhitelist(next);
 	}
 
@@ -100,15 +95,11 @@ public record RepairSettings(
 			return this;
 		}
 		String trimmed = name.trim();
-		var next = new ArrayList<WhitelistSeed>();
-		for (WhitelistSeed seed : whitelistSeeds) {
-			if (!seed.name().equals(trimmed)) {
-				next.add(seed);
-			}
-		}
-		if (next.size() == whitelistSeeds.size()) {
+		if (!whitelist.contains(trimmed)) {
 			return this;
 		}
+		var next = new ArrayList<>(whitelist);
+		next.remove(trimmed);
 		return withWhitelist(next);
 	}
 
@@ -128,13 +119,6 @@ public record RepairSettings(
 						new ManualIngredient("ironplate", 12),
 						new ManualIngredient("tungstenplate", 6)))),
 				Set.of("skullchest", "goldchest", "silverchest", "armoredchest"),
-				List.of(
-						new WhitelistSeed("miningdrill", (short) 134),
-						new WhitelistSeed("chainsaw", (short) 132),
-						new WhitelistSeed("trimmer", (short) 136),
-						new WhitelistSeed("bow1", (short) 195),
-						new WhitelistSeed("crossbow", (short) 205),
-						new WhitelistSeed("repeater", (short) 300),
-						new WhitelistSeed("morningstar1", (short) 250)));
+				List.of("miningdrill", "chainsaw", "trimmer", "bow1", "crossbow", "repeater", "morningstar1"));
 	}
 }
