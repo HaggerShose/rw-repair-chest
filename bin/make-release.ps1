@@ -1,5 +1,5 @@
 # Build RepairChest release zip only (no deploy).
-# Layout: RepairChest/RepairChest.jar + README.md
+# Layout: RepairChest/RepairChest.jar + RepairChest/README.md
 # Output: RepairChest.zip at repo root; JAR also in target\RepairChest.jar
 $ErrorActionPreference = 'Stop'
 
@@ -26,7 +26,7 @@ if (Test-Path $Stage) {
 }
 New-Item -ItemType Directory -Path $PluginDir | Out-Null
 Copy-Item $Jar (Join-Path $PluginDir 'RepairChest.jar')
-Copy-Item $Readme (Join-Path $Stage 'README.md')
+Copy-Item $Readme (Join-Path $PluginDir 'README.md')
 
 Write-Host "Writing $Zip"
 if (Test-Path $Zip) {
