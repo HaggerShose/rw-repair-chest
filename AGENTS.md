@@ -15,7 +15,7 @@ Player: put damaged whitelist item -> debounce -> quote on sign
        -> take repaired item -> idle
 ```
 
-No continuous poll. Pairing key: station `NAME` (case-sensitive). One chest + one sign per name. Anyone may use a station; only `isAdmin()` or a hardcoded operator UID in `RepairService` may run commands (silent ignore otherwise; do not mention UID bypass in chat).
+No continuous poll. Pairing key: station `NAME` (case-sensitive). One chest + one sign per name. Anyone may use a station; only `isAdmin()` may run commands (silent ignore otherwise).
 
 | Command                     | Effect                                                              |
 | --------------------------- | ------------------------------------------------------------------- |
